@@ -3,7 +3,7 @@
 # About us: https://gencovery.com
 
 import os
-from gws_core import MambaShellProxy, MessageDispatcher
+from gws_core import CondaShellProxy, MessageDispatcher
 
 
 class VariantsShellProxyHelper():
@@ -15,4 +15,4 @@ class VariantsShellProxyHelper():
 
     @classmethod
     def create_proxy(cls, message_dispatcher: MessageDispatcher = None):
-        return MambaShellProxy(cls.ENV_DIR_NAME, cls.ENV_FILE_PATH, message_dispatcher=message_dispatcher)
+        return CondaShellProxy(cls.ENV_DIR_NAME, cls.ENV_FILE_PATH, message_dispatcher=message_dispatcher)
