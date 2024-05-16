@@ -27,22 +27,25 @@ class FreebayesVariantsDetection(Task):
     input_specs = InputSpecs({
         'input_folder':
         InputSpec(
-            Folder, human_name="Folder containing fastq files"),
+            Folder, human_name="Folder containing alignments files"),
         'input_file':
         InputSpec(
-            File, human_name="File containing reference sequences")
+            File, human_name="File containing reference sequences"),
+        'bed_input_file':
+        InputSpec(
+            File, human_name="File containing nucleotide positions")
     })
 
     output_specs = OutputSpecs({
         'output_path':
         OutputSpec(
-            File, human_name="Variants calling",
+            Folder, human_name="Variants calling",
             short_description="#################"),
     })
 
     config_specs: ConfigSpecs = {
         "ploidy": IntParam(default_value=2, min_value=1, short_description="Set the  the number of copies of each chromosome present in the genome of the organism being analyzed"),
-        "detection_threshold": FloatParam(default_value=0.05, min_value=0, short_description="Set the detection threshold value"),
+        "num_processes": IntParam(default_value=4, min_value=4, short_description="Set the number of threads"),
 
     }
 
@@ -57,8 +60,9 @@ class FreebayesVariantsDetection(Task):
         # retrive the input table
         input_folder: Folder = inputs['input_folder']
         input_file: File = inputs['input_file']
+        bed_input_file: File = inputs['bed_input_file']
         ploidy = params["ploidy"]
-        detection_threshold = params["detection_threshold"]
+        num_processes = params["num_processes"]
 
         # Execute the command
         shell_proxy = VariantsShellProxyHelper.create_proxy(self.message_dispatcher)
@@ -66,15 +70,11 @@ class FreebayesVariantsDetection(Task):
         os.makedirs(result_path)
 
         # call python file
-        cmd = f"python3 {self.python_file_path} {input_folder.path} {input_file.path } {result_path} {int(ploidy)} {float(detection_threshold)}"
+        cmd = f"python3 {self.python_file_path} {input_folder.path} {input_file.path } {bed_input_file.path} {result_path} {int(ploidy)} {int(num_processes)}"
         shell_proxy.run(cmd, shell_mode=True)
 
 
-        vcf_file = os.path.join(result_path, "variants_raw.vcf")
-
-
+        folder = Folder(result_path)
 
         # return the output table
-        return {
-                'output_path': File(vcf_file)
-        }
+        return {'output_path': folder}

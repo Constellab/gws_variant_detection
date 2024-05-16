@@ -1,6 +1,6 @@
-import sys
 import os
 import subprocess
+import sys
 
 class ReadsMappingMinimap:
     def __init__(self, ref_genome, fastq_dir, threads, output_dir):
@@ -14,10 +14,12 @@ class ReadsMappingMinimap:
             os.makedirs(self.output_dir)
 
     def index_reference(self):
-        subprocess.run(["minimap2", "-d", f"{self.ref_genome}.mmi", self.ref_genome])
-        subprocess.run(["samtools", "faidx", self.ref_genome])
+        # Index the reference genome using minimap2 and samtools
+        subprocess.run(["minimap2", "-d", f"{self.ref_genome}.mmi", self.ref_genome], check=True)
+        subprocess.run(["samtools", "faidx", self.ref_genome], check=True)
 
     def map_reads(self):
+        # Process each .fastq.gz file in the directory
         file_extension = ".fastq.gz"
         platform = "Nanopore"
         read_files = [f for f in os.listdir(self.fastq_dir) if f.endswith(file_extension)]
@@ -27,77 +29,59 @@ class ReadsMappingMinimap:
             bname = os.path.splitext(read_file)[0]
 
             RG_COUNTER += 1
-            RGID = str(RG_COUNTER)
+            RGID = f"RG{RG_COUNTER}"
             RGSN = bname
-            readgroup = f"@RG\\tID:{RGID}\\tPL:{platform}\\tPU:None\\tLB:None\\tSM:{RGSN}"
+            readgroup = f"@RG\\tID:{RGID}\\tPL:{platform}\\tPU:unit1\\tLB:lib1\\tSM:{RGSN}"
 
-            print(f"read file: {read_file}")
+            print(f"Mapping read file: {read_file}")
 
-            output_bam = os.path.join(self.output_dir, f"{bname}.raw.bam")
+            output_bam = os.path.join(self.output_dir, f"{bname}.bam")
+
+            # Mapping reads with minimap2 and converting to BAM format with samtools
             minimap_cmd = ["minimap2", "-t", str(self.threads), "-R", readgroup, "-ax", "map-ont", self.ref_genome, os.path.join(self.fastq_dir, read_file)]
-            samtools_cmd = ["samtools", "view", "-h", "-b", "-o", output_bam]
+            samtools_cmd = ["samtools", "view", "-bS", "-"]
 
+            # Running minimap2 and piping output to samtools to generate BAM file
             minimap_process = subprocess.Popen(minimap_cmd, stdout=subprocess.PIPE)
-            samtools_process = subprocess.Popen(samtools_cmd, stdin=minimap_process.stdout)
+            samtools_process = subprocess.Popen(samtools_cmd, stdin=minimap_process.stdout, stdout=subprocess.PIPE)
+            with open(output_bam, 'wb') as f:
+                for data in samtools_process.stdout:
+                    f.write(data)
+
             minimap_process.stdout.close()
             samtools_process.communicate()
 
-            # Rename output files to match the desired format
-            os.rename(output_bam, os.path.join(self.output_dir, f"{bname}.raw.bam"))
+            # Sort and index the BAM file
+            sorted_bam = os.path.join(self.output_dir, f"{bname}.sorted.bam")
+            subprocess.run(["samtools", "sort", "-o", sorted_bam, output_bam], check=True)
+            subprocess.run(["samtools", "index", sorted_bam], check=True)
+
+            # Cleanup intermediate files to save space
+            os.remove(output_bam)
 
     def preprocess_bams(self):
-        allbams = [f for f in os.listdir(self.output_dir) if f.endswith(".raw.bam")]
-
-        for raw_bam in allbams:
-            bname = os.path.splitext(raw_bam)[0]
-
-            filtered_bam = os.path.join(self.output_dir, f"{bname}.filtered.bam")
-            sorted_bam_n = os.path.join(self.output_dir, f"{bname}.sorted.n.bam")
-            fixmate_bam = os.path.join(self.output_dir, f"{bname}.fixmate.bam")
-            sorted_bam_p = os.path.join(self.output_dir, f"{bname}.sorted.p.bam")
-            dedup_bam = os.path.join(self.output_dir, f"{bname}.dedup.bam")
-            dedup_bam_new_name = os.path.join(self.output_dir, f"{bname}.dedup.bam")
-
-            samtools_view_cmd = ["samtools", "view", "-b", "-F", "0xc", os.path.join(self.output_dir, raw_bam), "-o", filtered_bam]
-            samtools_sort_n_cmd = ["samtools", "sort", "-n", "-@", str(self.threads), filtered_bam, "-o", sorted_bam_n]
-            samtools_fixmate_cmd = ["samtools", "fixmate", "-m", sorted_bam_n, fixmate_bam]
-            samtools_sort_p_cmd = ["samtools", "sort", "-@", str(self.threads), fixmate_bam, "-o", sorted_bam_p]
-            samtools_markdup_cmd = ["samtools", "markdup", "-r", "-@", str(self.threads), sorted_bam_p, dedup_bam_new_name]
-            samtools_index_cmd = ["samtools", "index", dedup_bam_new_name]
-
-            subprocess.run(samtools_view_cmd)
-            subprocess.run(samtools_sort_n_cmd)
-            subprocess.run(samtools_fixmate_cmd)
-            subprocess.run(samtools_sort_p_cmd)
-            subprocess.run(samtools_markdup_cmd)
-            subprocess.run(samtools_index_cmd)
-
-            os.remove(filtered_bam)
-            os.remove(sorted_bam_n)
-            os.remove(fixmate_bam)
-            os.remove(sorted_bam_p)
-
-            print("duplicates have been removed")
-
         # Rename files to match desired format
         for f in os.listdir(self.output_dir):
-            if f.endswith(".raw.bam"):
-                new_name = f.replace(".fastq.raw.bam", ".raw.bam")
+            if f.endswith(".bam"):
+                new_name = f.replace(".fastq.sorted.bam", ".sorted.bam")
                 os.rename(os.path.join(self.output_dir, f), os.path.join(self.output_dir, new_name))
-            elif f.endswith(".raw.dedup.bam"):
-                new_name = f.replace(".fastq.raw.dedup.bam", ".dedup.bam")
-                os.rename(os.path.join(self.output_dir, f), os.path.join(self.output_dir, new_name))
-            elif f.endswith(".raw.dedup.bam.bai"):
-                new_name = f.replace(".fastq.raw.dedup.bam.bai", ".dedup.bam.bai")
+            if f.endswith(".bai"):
+                new_name = f.replace(".fastq.sorted.bam.bai", ".sorted.bam.bai")
                 os.rename(os.path.join(self.output_dir, f), os.path.join(self.output_dir, new_name))
 
+        print("Files have been renamed to match the desired format.")
 
 fastq_dir = sys.argv[1]
 ref_genome = sys.argv[2]
 threads = int(sys.argv[3])
 output_dir = sys.argv[4]
+
 mapper = ReadsMappingMinimap(ref_genome, fastq_dir, threads, output_dir)
 mapper.create_output_directory()
 mapper.index_reference()
 mapper.map_reads()
 mapper.preprocess_bams()
+
+
+
+
