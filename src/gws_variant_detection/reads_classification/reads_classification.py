@@ -14,11 +14,12 @@ from ..base_env.Mappy_env import MappyShellProxyHelper
 
 
 @task_decorator("ReadsClassification", human_name="ReadsClassification",
-                short_description="Classify each read")
+                short_description="Per gene read Classification")
 class RawReadsClassification(Task):
     """
-    This task uses mappy the Python binding for minimap2, which allows you to use minimap2's alignment functionality directly from Python.
-    This is what the script uses to align reads to reference sequences.
+    This task permit to classify sequencing reads based on their alignment to reference sequences, leveraging the Python bindings for Minimap2 provided by Mappy.
+    The script operates by processing compressed FASTQ files located in a specified input directory, aligning each read to a reference sequence using an identity threshold to determine match quality.
+    If a read aligns to the reference sequence with an identity percentage equal or higher than the set threshold, it is classified under the gene corresponding to that reference sequence.
     """
 
     input_specs = InputSpecs({
@@ -34,7 +35,7 @@ class RawReadsClassification(Task):
         'output_path':
         OutputSpec(
             Folder, human_name="per gene folder",
-            short_description="#################"),
+            short_description="Each folder contains the different reads that map to a specific reference sequence."),
     })
 
     config_specs: ConfigSpecs = {

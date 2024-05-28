@@ -14,7 +14,7 @@ from ..base_env.Variants_env import VariantsShellProxyHelper
 
 
 @task_decorator("QualityCheck", human_name="NanoQualitycheck",
-                short_description="statistical summary of reads quality")
+                short_description="Statistical summary of reads quality")
 class NanoQualityCheck(Task):
     """
     This task uses Nanoplot in order to check the quality of nanopore reads. It takes a folder containing fastq reads and it generates
@@ -41,7 +41,7 @@ class NanoQualityCheck(Task):
         'output_path':
         OutputSpec(
             Table, human_name="quality check statistical table",
-            short_description="#################")
+            short_description="This table contains the different statistical values")
     })
 
     config_specs: ConfigSpecs = {

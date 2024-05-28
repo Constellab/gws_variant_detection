@@ -14,11 +14,11 @@ from ..base_env.Variants_env import VariantsShellProxyHelper
 
 
 @task_decorator("FreebayesVariantsDetection", human_name="NanoFreebayesVariantsDetection",
-                short_description="#######################")
+                short_description="Variant calling using freebayes")
 class FreebayesVariantsDetection(Task):
     """
-    This task uses freebayes
-    ploidy refers to the number of copies of each chromosome present in the genome of the organism being analyzed.
+    This task uses freebayes a bayesian genetic variant detector.
+    Ploidy refers to the number of copies of each chromosome present in the genome of the organism being analyzed.
     For diploid organisms like humans, the ploidy is 2, indicating that there are two copies of each chromosome
     (one inherited from each parent). In polyploid organisms or organisms with different levels of ploidy
     (e.g., triploid, tetraploid), the ploidy value would be different accordingly.
@@ -40,7 +40,7 @@ class FreebayesVariantsDetection(Task):
         'output_path':
         OutputSpec(
             Folder, human_name="Variants calling",
-            short_description="#################"),
+            short_description="Raw variant calling file"),
     })
 
     config_specs: ConfigSpecs = {

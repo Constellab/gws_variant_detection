@@ -14,12 +14,10 @@ from ..base_env.Variants_env import VariantsShellProxyHelper
 
 
 @task_decorator("PorechopTrimming", human_name="NanoAdaptersElimination",
-                short_description="xxxxxxxxxxxxxxxxxxxxxxxxxxx")
+                short_description="Adaptors elimination" , hide=True)
 class PorechopTrimming(Task):
     """
-    This task uses xxxxxxxxxxxxxxxxxxxxxxxxx
-    splitting reads containing middle adapters.for this purpose I added a parameter that will throw reads with internal adapters
-    instead of splitting them.
+    This task uses Porechop to trim reads and eliminate adapters
     """
 
     input_specs = InputSpecs({

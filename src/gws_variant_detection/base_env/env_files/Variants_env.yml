@@ -14,3 +14,4 @@ dependencies:
   - multiprocess==0.70.16
   - make==4.3
   - whatshap==2.3
+  - pandas==2.2.2

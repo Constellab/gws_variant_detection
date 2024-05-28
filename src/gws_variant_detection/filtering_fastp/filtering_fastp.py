@@ -14,10 +14,11 @@ from ..base_env.Variants_env import VariantsShellProxyHelper
 
 
 @task_decorator("ReadsQualityFiltering", human_name="NanoReadsFiltering",
-                short_description="#######################")
-class NanoQualityCheck(Task):
+                short_description="Elimination of low-quality reads and fixing the number of reads per sample.")
+class ReadsQualityFiltering(Task):
     """
-    This task uses Fastp
+    This task automates the process of filtering and randomly sampling reads from sequencing data using fastp and seqtk respectively.
+    The number of threads, a quality threshold, and the number of reads to process must be specified.
     """
 
     input_specs = InputSpecs({
@@ -29,12 +30,12 @@ class NanoQualityCheck(Task):
     output_specs = OutputSpecs({
         'output_path':
         OutputSpec(
-            Folder, human_name="filtered reads",
-            short_description="#################"),
+            Folder, human_name="Filtered reads",
+            short_description="This folder contains raw filtered reads having quality > threshold"),
         'filtered_output_path':
         OutputSpec(
-            Folder, human_name="randomly filtered reads",
-            short_description="#################"),
+            Folder, human_name="Subset of filtered reads",
+            short_description="This folder contains a subset of randomly filtered reads"),
     })
 
     config_specs: ConfigSpecs = {
@@ -62,7 +63,7 @@ class NanoQualityCheck(Task):
         result_path = os.path.join(shell_proxy.working_dir, 'Filtered_reads')
         os.makedirs(result_path)
 
-        filtered_result_path = os.path.join(shell_proxy.working_dir, 'Filtered_reads_test')
+        filtered_result_path = os.path.join(shell_proxy.working_dir, 'fixed_number_of_filtered_reads')
         os.makedirs(filtered_result_path)
         # call python file
         cmd = f"python3 {self.python_file_path} {input_folder.path} {result_path} {filtered_result_path} {int(num_threads)} {int(qualified_quality_phred)} {int(reads_to_process)} "

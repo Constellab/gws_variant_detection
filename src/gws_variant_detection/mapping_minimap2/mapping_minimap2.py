@@ -14,10 +14,11 @@ from ..base_env.Variants_env import VariantsShellProxyHelper
 
 
 @task_decorator("ReadsMapping", human_name="NanoReadsMapping",
-                short_description="#######################")
+                short_description="Mapping of long reads to reference sequence")
 class NanoMapping(Task):
     """
-    This task uses minimap2
+    This task is dedicated to mapping sequencing reads against a reference genome, a crucial step in the variant calling pipeline using Minimap2.
+    Minimap2 is optimized for aligning long reads, which can be challenging due to their high error rate and complexity.
     """
 
     input_specs = InputSpecs({
@@ -33,7 +34,7 @@ class NanoMapping(Task):
         'output_path':
         OutputSpec(
             Folder, human_name="Aligned reads",
-            short_description="#################")
+            short_description="alignment files in BAM format")
     })
 
     config_specs: ConfigSpecs = {

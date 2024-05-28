@@ -14,10 +14,13 @@ from ..base_env.Variants_env import VariantsShellProxyHelper
 
 
 @task_decorator("MinipileupVariantsDetection", human_name="NanoMinipileupVariantsDetection",
-                short_description="#######################")
+                short_description="Variant calling using minipileup")
+
 class MinipileupVariantsDetection(Task):
     """
-    This task uses minipileup
+    This task uses Minipileup a simple pileup-based variant caller.
+    It iteratively processes each position in the genome where reads are aligned (pileup). A 'Pileup' is when a multiple sequencing reads overlap at the same genomic position
+    Minipileup counts the number of each type of base (allele) present at every genomic position. This count is crucial to determine if a variation is present and to assess the allele frequency.
     """
 
     input_specs = InputSpecs({
@@ -33,7 +36,7 @@ class MinipileupVariantsDetection(Task):
         'output_path':
         OutputSpec(
             Folder, human_name="Variants calling",
-            short_description="#################"),
+            short_description="per base variant calling file"),
     })
 
     config_specs: ConfigSpecs = {
