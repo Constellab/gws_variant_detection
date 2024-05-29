@@ -112,14 +112,24 @@ class VCFNormalizer:
                 else:
                     merged_known[col] = merged_known[col].fillna(0)
 
+        for col in merged_known.columns:
+            if '_QUAL' in col:
+                merged_known.drop(col, axis=1, inplace=True)
+
         # Reorder columns to place variant_name first
         cols = ['variant_name'] + [col for col in merged_known.columns if col != 'variant_name']
         merged_known = merged_known[cols]
 
+
         merged_known.to_csv(os.path.join(self.output_folder, 'known_variants.tsv'), sep='\t', index=False)
         unknown = merged_df[~merged_df.set_index(['CHROM', 'POS', 'REF', 'ALT']).index.isin(known_df.set_index(['CHROM', 'POS', 'REF', 'ALT']).index)]
+        for col in unknown.columns:
+            if '_QUAL' in col:
+                unknown.drop(col, axis=1, inplace=True)
+
         unknown.to_csv(os.path.join(self.output_folder, 'unknown_variants.tsv'), sep='\t', index=False)
 
+        unknown.to_csv(os.path.join(self.output_folder, 'unknown_variants.tsv'), sep='\t', index=False)
 
 vcf_folder = sys.argv[1]
 ref_genome = sys.argv[2]
