@@ -78,8 +78,8 @@ class VCFNormalizer:
         gene_variants = {
             'Cytb': [
                 {'variant_name': 'Variant4_S34L', 'CHROM': 'Cytb', 'POS': 919, 'REF': 'C', 'ALT': 'T'},
-                {'variant_name': 'Variant5_F129L', 'CHROM': 'Cytb', 'POS': 1205, 'REF': 'T', 'ALT': 'A'},
-                {'variant_name': 'Variant5_F129L', 'CHROM': 'Cytb', 'POS': 1205, 'REF': 'T', 'ALT': 'G'},
+                {'variant_name': 'Variant5_F129L_A', 'CHROM': 'Cytb', 'POS': 1205, 'REF': 'T', 'ALT': 'A'},
+                {'variant_name': 'Variant5_F129L_G', 'CHROM': 'Cytb', 'POS': 1205, 'REF': 'T', 'ALT': 'G'},
                 {'variant_name': 'Variant6_G143A', 'CHROM': 'Cytb', 'POS': 1246, 'REF': 'G', 'ALT': 'C'},
                 {'variant_name': 'Variant3_L201S', 'CHROM': 'Cytb', 'POS': 1420, 'REF': 'T', 'ALT': 'C'},
                 {'variant_name': 'Variant1_E203-DE-V204', 'CHROM': 'Cytb', 'POS': 1422, 'REF': 'C', 'ALT': 'CATGAGG'},
