@@ -12,6 +12,8 @@ class MinipileupCaller:
     def index_reference(self):
         # Index the reference genome using samtools faidx, if required
         subprocess.run(["samtools", "faidx", self.ref_genome])
+        make_version = subprocess.run(["make", "--version"], capture_output=True, text=True)
+        print("Make version:", make_version.stdout)
 
     def call_variants(self):
         # Index the reference genome

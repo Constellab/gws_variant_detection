@@ -44,7 +44,7 @@ class VariantsFiltering(Task):
         "gene_name":
         StrParam(allowed_values=["Cytb","OSBP","Tubulin","ATPase"], default_value="Cytb",
                  short_description="Targeted gene"),
-        "reads_to_process": IntParam(default_value=5000, min_value=5000, short_description="Number of reads to process")
+        "reads_to_process": IntParam(default_value=5000, min_value=3000, short_description="Number of reads to process")
     }
 
     python_file_path = os.path.join(

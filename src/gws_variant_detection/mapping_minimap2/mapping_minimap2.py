@@ -38,7 +38,7 @@ class NanoMapping(Task):
     })
 
     config_specs: ConfigSpecs = {
-        "num_threads": IntParam(default_value=2, min_value=2, short_description="Number of threads "),
+        "num_threads": IntParam(default_value=15, min_value=2, short_description="Number of threads "),
     }
 
     python_file_path = os.path.join(

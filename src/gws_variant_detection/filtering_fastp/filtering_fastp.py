@@ -39,9 +39,11 @@ class ReadsQualityFiltering(Task):
     })
 
     config_specs: ConfigSpecs = {
-        "num_threads": IntParam(default_value=2, min_value=2, short_description="Number of threads "),
+        "num_threads": IntParam(default_value=15, min_value=2, short_description="Number of threads "),
         "qualified_quality_phred": IntParam(default_value=10, min_value=4, short_description="qualified quality phred "),
-        "reads_to_process": IntParam(default_value=5000, min_value=1000, short_description="number of reads to process")
+        "reads_to_process": IntParam(default_value=5000, min_value=1000, short_description="number of reads to process"),
+        "seqtk_sample_seed": IntParam( default_value=100, min_value=1, human_name="sample_seed", visibility=IntParam.PROTECTED_VISIBILITY,
+            short_description="Fix sample seed")
     }
 
     python_file_path = os.path.join(
@@ -57,6 +59,7 @@ class ReadsQualityFiltering(Task):
         num_threads = params["num_threads"]
         qualified_quality_phred = params["qualified_quality_phred"]
         reads_to_process = params["reads_to_process"]
+        seqtk_sample_seed = params["seqtk_sample_seed"]
 
         # Execute the command
         shell_proxy = VariantsShellProxyHelper.create_proxy(self.message_dispatcher)
@@ -66,7 +69,7 @@ class ReadsQualityFiltering(Task):
         filtered_result_path = os.path.join(shell_proxy.working_dir, 'fixed_number_of_filtered_reads')
         os.makedirs(filtered_result_path)
         # call python file
-        cmd = f"python3 {self.python_file_path} {input_folder.path} {result_path} {filtered_result_path} {int(num_threads)} {int(qualified_quality_phred)} {int(reads_to_process)} "
+        cmd = f"python3 {self.python_file_path} {input_folder.path} {result_path} {filtered_result_path} {int(num_threads)} {int(qualified_quality_phred)} {int(reads_to_process)} {int(seqtk_sample_seed)}"
         shell_proxy.run(cmd, shell_mode=True)
 
 

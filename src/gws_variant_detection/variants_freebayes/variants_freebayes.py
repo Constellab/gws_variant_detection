@@ -45,7 +45,7 @@ class FreebayesVariantsDetection(Task):
 
     config_specs: ConfigSpecs = {
         "ploidy": IntParam(default_value=2, min_value=1, short_description="Set the  the number of copies of each chromosome present in the genome of the organism being analyzed"),
-        "num_processes": IntParam(default_value=4, min_value=4, short_description="Set the number of threads"),
+        "num_processes": IntParam(default_value=15, min_value=4, short_description="Set the number of threads"),
 
     }
 
