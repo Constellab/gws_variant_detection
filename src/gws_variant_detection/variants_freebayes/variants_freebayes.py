@@ -5,7 +5,7 @@
 
 import os
 
-from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,
+from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,ShellProxy,
                       InputSpecs, IntParam, OutputSpec, OutputSpecs, Task,
                       TaskInputs, TaskOutputs, task_decorator , TableImporter , Table , FloatParam)
 
@@ -53,6 +53,7 @@ class FreebayesVariantsDetection(Task):
         os.path.abspath(os.path.dirname(__file__)),
         "_variants_freebayes.py"
     )
+    shell_proxy: ShellProxy = None
 
     def run(self, params: ConfigParams, inputs: TaskInputs) -> TaskOutputs:
         """ Run the task """
@@ -72,9 +73,14 @@ class FreebayesVariantsDetection(Task):
         # call python file
         cmd = f"python3 {self.python_file_path} {input_folder.path} {input_file.path } {bed_input_file.path} {result_path} {int(ploidy)} {int(num_processes)}"
         shell_proxy.run(cmd, shell_mode=True)
+        self.shell_proxy = shell_proxy
 
 
         folder = Folder(result_path)
 
         # return the output table
         return {'output_path': folder}
+
+    def run_after_task(self):
+        if self.shell_proxy:
+            self.shell_proxy.clean_working_dir()

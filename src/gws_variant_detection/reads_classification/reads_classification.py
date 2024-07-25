@@ -5,7 +5,7 @@
 
 import os
 
-from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,
+from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder, ShellProxy,
                       InputSpecs, OutputSpec, OutputSpecs, Task,
                       TaskInputs, TaskOutputs, task_decorator)
 
@@ -46,6 +46,8 @@ class RawReadsClassification(Task):
         "_reads_classification.py"
     )
 
+    shell_proxy: ShellProxy = None
+
     def run(self, params: ConfigParams, inputs: TaskInputs) -> TaskOutputs:
         """ Run the task """
 
@@ -61,9 +63,14 @@ class RawReadsClassification(Task):
         # call python file
         cmd = f"python3 {self.python_file_path} {input_folder.path} {input_file.path } {result_path}"
         shell_proxy.run(cmd, shell_mode=True)
+        self.shell_proxy = shell_proxy
 
 
         folder = Folder(result_path)
 
         # return the output table
         return {'output_path': folder}
+
+    def run_after_task(self):
+        if self.shell_proxy:
+            self.shell_proxy.clean_working_dir()

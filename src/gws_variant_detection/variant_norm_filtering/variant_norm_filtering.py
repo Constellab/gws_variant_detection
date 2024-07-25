@@ -5,7 +5,7 @@
 
 import os
 
-from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,
+from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,ShellProxy,
                       InputSpecs, IntParam, OutputSpec, OutputSpecs, Task,
                       TaskInputs, TaskOutputs, task_decorator, StrParam, Table , TableImporter)
 
@@ -52,6 +52,8 @@ class VariantsFiltering(Task):
         "_variant_norm_filtering.py"
     )
 
+    shell_proxy: ShellProxy = None
+
     def run(self, params: ConfigParams, inputs: TaskInputs) -> TaskOutputs:
         """ Run the task """
 
@@ -69,16 +71,18 @@ class VariantsFiltering(Task):
         known_unknown_result_path = os.path.join(shell_proxy.working_dir, 'known_unknown_files')
         os.makedirs(known_unknown_result_path)
 
+
         # call python file
         cmd = f"python3 {self.python_file_path} {input_folder.path} {input_file.path } {str(gene_name)} {int(reads_to_process)} {normalized_result_path} {known_unknown_result_path}"
         shell_proxy.run(cmd, shell_mode=True)
+        self.shell_proxy = shell_proxy
 
         # display outputs :
         # 1_normalized vcf
         normalized_vcf_files = Folder(normalized_result_path)
 
         # Read the known and unknown variants from the output path
-        known_variants_file_path = os.path.join(known_unknown_result_path, 'known_variants.tsv')
+        known_variants_file_path = os.path.join(known_unknown_result_path, 'known_variants_filtered.tsv')
         unknown_variants_file_path = os.path.join(known_unknown_result_path, 'unknown_variants.tsv')
 
         known_variants_table = TableImporter.call(File(known_variants_file_path), {'delimiter': 'tab', 'header': 0, 'file_format': 'tsv'})
@@ -90,3 +94,7 @@ class VariantsFiltering(Task):
             'known_variants': known_variants_table,
             'unknown_variants': unknown_variants_table
         }
+
+    def run_after_task(self):
+        if self.shell_proxy:
+            self.shell_proxy.clean_working_dir()

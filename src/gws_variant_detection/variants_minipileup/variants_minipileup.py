@@ -5,7 +5,7 @@
 
 import os
 
-from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,
+from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder, ShellProxy,
                       InputSpecs, IntParam, OutputSpec, OutputSpecs, Task,
                       TaskInputs, TaskOutputs, task_decorator, TableImporter, Table, FloatParam, TaskFileDownloader)
 
@@ -47,6 +47,8 @@ class MinipileupVariantsDetection(Task):
         "_variants_minipileup.py"
     )
 
+    shell_proxy: ShellProxy = None
+
     def run(self, params: ConfigParams, inputs: TaskInputs) -> TaskOutputs:
         """ Run the task """
 
@@ -85,6 +87,7 @@ class MinipileupVariantsDetection(Task):
         # call python file
         cmd = f"python3 {self.python_file_path} {minipileup_file_path} {input_folder.path} {input_file.path} {result_path}"
         shell_proxy.run(cmd, shell_mode=True)
+        self.shell_proxy = shell_proxy
 
         vcf_file = os.path.join(result_path)
 
@@ -92,3 +95,7 @@ class MinipileupVariantsDetection(Task):
         return {
             'output_path': Folder(vcf_file)
         }
+
+    def run_after_task(self):
+        if self.shell_proxy:
+            self.shell_proxy.clean_working_dir()

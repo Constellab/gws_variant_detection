@@ -5,7 +5,7 @@
 
 import os
 
-from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,
+from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder, ShellProxy,
                       InputSpecs, IntParam, OutputSpec, OutputSpecs, Task,
                       TaskInputs, TaskOutputs, task_decorator , Table , TableImporter)
 
@@ -53,6 +53,8 @@ class NanoQualityCheck(Task):
         "_quality_check.py"
     )
 
+    shell_proxy: ShellProxy = None
+
     def run(self, params: ConfigParams, inputs: TaskInputs) -> TaskOutputs:
         """ Run the task """
 
@@ -68,6 +70,7 @@ class NanoQualityCheck(Task):
         # call python file
         cmd = f"python3 {self.python_file_path} {input_folder.path} {int(num_threads)} {result_path} "
         shell_proxy.run(cmd, shell_mode=True)
+        self.shell_proxy = shell_proxy
 
         statistical_file_name = os.path.join(
             shell_proxy.working_dir, "NanoStats_Summary.txt")
@@ -81,3 +84,7 @@ class NanoQualityCheck(Task):
 
         # return the output table
         return {'output_path': statistical_table}
+
+    def run_after_task(self):
+        if self.shell_proxy:
+            self.shell_proxy.clean_working_dir()

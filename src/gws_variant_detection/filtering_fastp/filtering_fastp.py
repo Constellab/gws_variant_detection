@@ -5,7 +5,7 @@
 
 import os
 
-from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,
+from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder, ShellProxy,
                       InputSpecs, IntParam, OutputSpec, OutputSpecs, Task,
                       TaskInputs, TaskOutputs, task_decorator)
 
@@ -43,13 +43,17 @@ class ReadsQualityFiltering(Task):
         "qualified_quality_phred": IntParam(default_value=10, min_value=4, short_description="qualified quality phred "),
         "reads_to_process": IntParam(default_value=5000, min_value=1000, short_description="number of reads to process"),
         "seqtk_sample_seed": IntParam( default_value=100, min_value=1, human_name="sample_seed", visibility=IntParam.PROTECTED_VISIBILITY,
-            short_description="Fix sample seed")
+            short_description="Fix sample seed"),
+        "skip_read_threshold": IntParam( default_value=100, min_value=1, human_name="skip_read_threshold", visibility=IntParam.PROTECTED_VISIBILITY,
+            short_description="Threshold for skipping files with slightly fewer reads")
     }
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),
         "_filtering_fastp.py"
     )
+
+    shell_proxy: ShellProxy = None
 
     def run(self, params: ConfigParams, inputs: TaskInputs) -> TaskOutputs:
         """ Run the task """
@@ -60,6 +64,7 @@ class ReadsQualityFiltering(Task):
         qualified_quality_phred = params["qualified_quality_phred"]
         reads_to_process = params["reads_to_process"]
         seqtk_sample_seed = params["seqtk_sample_seed"]
+        skip_read_threshold = params["skip_read_threshold"]
 
         # Execute the command
         shell_proxy = VariantsShellProxyHelper.create_proxy(self.message_dispatcher)
@@ -69,8 +74,9 @@ class ReadsQualityFiltering(Task):
         filtered_result_path = os.path.join(shell_proxy.working_dir, 'fixed_number_of_filtered_reads')
         os.makedirs(filtered_result_path)
         # call python file
-        cmd = f"python3 {self.python_file_path} {input_folder.path} {result_path} {filtered_result_path} {int(num_threads)} {int(qualified_quality_phred)} {int(reads_to_process)} {int(seqtk_sample_seed)}"
+        cmd = f"python3 {self.python_file_path} {input_folder.path} {result_path} {filtered_result_path} {int(num_threads)} {int(qualified_quality_phred)} {int(reads_to_process)} {int(seqtk_sample_seed)} {int(skip_read_threshold)}"
         shell_proxy.run(cmd, shell_mode=True)
+        self.shell_proxy = shell_proxy
 
 
         folder = Folder(result_path)
@@ -79,3 +85,7 @@ class ReadsQualityFiltering(Task):
         # return the output table
         return {'output_path': folder,
                 'filtered_output_path': folder_filtered}
+
+    def run_after_task(self):
+        if self.shell_proxy:
+            self.shell_proxy.clean_working_dir()

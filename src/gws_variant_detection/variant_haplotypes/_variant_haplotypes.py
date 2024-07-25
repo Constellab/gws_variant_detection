@@ -4,14 +4,16 @@ import subprocess
 import sys
 
 class VCFWorkflow:
-    def __init__(self, input_vcf_folder, input_bam_folder, reference_genome, gene_name, intermediate_folder, output_folder, output_matrix_folder):
+    def __init__(self, input_vcf_folder, input_bam_folder, reference_genome, gene_name, intermediate_folder, output_folder, output_matrix_folder, freq_matrix_folder, known_variants_file):
         self.input_vcf_folder = input_vcf_folder
         self.intermediate_folder = intermediate_folder
         self.input_bam_folder = input_bam_folder
         self.output_folder = output_folder
-        self.output_matrix_folder = output_matrix_folder  # New folder for output matrices
+        self.output_matrix_folder = output_matrix_folder  # Folder for count-based matrices
+        self.freq_matrix_folder = freq_matrix_folder  # Folder for frequency-based matrices
         self.reference_genome = reference_genome
         self.gene_name = gene_name
+        self.known_variants_file = known_variants_file
         self.gene_positions = self.get_gene_positions()
 
     def create_folder(self, folder_path):
@@ -30,14 +32,12 @@ class VCFWorkflow:
                 {'CHROM': 'Cytb', 'POS': 1246, 'REF': 'G', 'ALT': 'C'},
                 {'CHROM': 'Cytb', 'POS': 1420, 'REF': 'T', 'ALT': 'C'},
                 {'CHROM': 'Cytb', 'POS': 1422, 'REF': 'C', 'ALT': 'CATGAGG'},
-                {'CHROM': 'Cytb', 'POS': 1431, 'REF': 'G', 'ALT': 'GAGGTAG'}
+                {'CHROM': 'Cytb', 'POS': 1424, 'REF': 'T', 'ALT': 'TGAGGTA'}
             ],
             'OSBP': [
-                {'CHROM': 'OSBP', 'POS': 3889, 'REF': 'G', 'ALT': 'T'},
-                {'CHROM': 'OSBP', 'POS': 4090, 'REF': 'A', 'ALT': 'T'},
-                {'CHROM': 'OSBP', 'POS': 4090, 'REF': 'A', 'ALT': 'ATT'},
-                {'CHROM': 'OSBP', 'POS': 4090, 'REF': 'A', 'ALT': 'ATC'},
-                {'CHROM': 'OSBP', 'POS': 4168, 'REF': 'T', 'ALT': 'G'}
+                {'CHROM': 'OSBP', 'POS': 4169, 'REF': 'T', 'ALT': 'G'},
+                {'CHROM': 'OSBP', 'POS': 4091, 'REF': 'A', 'ALT': 'T'},
+                {'CHROM': 'OSBP', 'POS': 3890, 'REF': 'G', 'ALT': 'T'}
             ],
             'Tubulin': [
                 {'CHROM': 'Tubulin', 'POS': 1541, 'REF': 'T', 'ALT': 'A'},
@@ -77,16 +77,17 @@ class VCFWorkflow:
         """Phase the extracted VCF files using corresponding BAM files."""
         self.create_folder(self.output_folder)
         self.create_folder(self.output_matrix_folder)  # Create the output matrix folder
+        self.create_folder(self.freq_matrix_folder)  # Create the frequency matrix folder
         for vcf_file in os.listdir(self.intermediate_folder):
             if vcf_file.endswith('.vcf'):
-                vcf_prefix = vcf_file.split('.')[0]
+                vcf_prefix = vcf_file.split('-')[0]
                 bam_file = self.find_bam_file(vcf_prefix)
                 if bam_file:
                     input_vcf = os.path.join(self.intermediate_folder, vcf_file)
                     input_bam = os.path.join(self.input_bam_folder, bam_file)
                     output_vcf = os.path.join(self.output_folder, f"{vcf_file}")
                     self.phase_vcf(input_vcf, input_bam, output_vcf)
-                    self.assign_variant_names(output_vcf)  # Call the variant name assignment function
+                    self.assign_variant_names(output_vcf, vcf_prefix)  # Call the variant name assignment function
                 else:
                     print(f"No corresponding BAM file found for {vcf_file}")
 
@@ -107,7 +108,7 @@ class VCFWorkflow:
         ]
         subprocess.run(command, check=True)
 
-    def assign_variant_names(self, output_vcf):
+    def assign_variant_names(self, output_vcf, barcode_prefix):
         """Assign variant names based on CHROM, POS, REF, ALT."""
         # Read the phased VCF into DataFrame
         df = pd.read_csv(output_vcf, comment='#', sep='\t', dtype={'POS': int},
@@ -115,18 +116,16 @@ class VCFWorkflow:
 
         # Mapping of variant names based on CHROM, POS, REF, ALT
         variant_names = {
-            ('Cytb', 919, 'C', 'T'): 'Variant4_S34L',
-            ('Cytb', 1205, 'T', 'A'): 'Variant5_F129L_A',
-            ('Cytb', 1205, 'T', 'G'): 'Variant5_F129L_G',
-            ('Cytb', 1246, 'G', 'C'): 'Variant6_G143A',
-            ('Cytb', 1420, 'T', 'C'): 'Variant3_L201S',
-            ('Cytb', 1422, 'C', 'CATGAGG'): 'Variant1_E203-DE-V204',
-            ('Cytb', 1431, 'G', 'GAGGTAG'): 'Variant2_E203-VE-V204',
-            ('OSBP', 3889, 'G', 'T'): 'G770V',
-            ('OSBP', 4090, 'A', 'T'): 'N837I',
-            ('OSBP', 4090, 'A', 'ATT'): 'N837I_ATT',
-            ('OSBP', 4090, 'A', 'ATC'): 'N837I_ATC',
-            ('OSBP', 4168, 'T', 'G'): 'L863W',
+            ('Cytb', 919, 'C', 'T'): 'S34L',
+            ('Cytb', 1205, 'T', 'A'): 'F129L_A',
+            ('Cytb', 1205, 'T', 'G'): 'F129L_G',
+            ('Cytb', 1246, 'G', 'C'): 'G143A',
+            ('Cytb', 1420, 'T', 'C'): 'L201S',
+            ('Cytb', 1422, 'C', 'CATGAGG'): 'E203-DE-V204',
+            ('Cytb', 1424, 'T', 'TGAGGTA'): 'E203-VE-V204',
+            ('OSBP', 4169, 'T', 'G'): 'L863W',
+            ('OSBP', 4091, 'A', 'T'): 'N837I',
+            ('OSBP', 3890, 'G', 'T'): 'G770V',
             ('Tubulin', 1541, 'T', 'A'): 'C239S_AGC',
             ('Tubulin', 1541, 'T', 'G'): 'C239G_GGC',
             ('Tubulin', 1542, 'G', 'C'): 'C239S_TCC',
@@ -142,14 +141,89 @@ class VCFWorkflow:
         # Write the DataFrame back to the VCF file
         df.to_csv(output_vcf, sep='\t', index=False)
 
-        # Parse the modified VCF and build co-occurrence matrix
-        vcf_df = parse_vcf(output_vcf)
-        cooccurrence_matrix = build_cooccurrence_matrix(vcf_df)
+        # Print the phased VCF file
+        print("Phased VCF File:")
+        print(df)
 
-        # Save the matrix to a CSV file
-        output_matrix_path = os.path.join(self.output_matrix_folder, f"{os.path.basename(output_vcf).split('.')[0]}_matrix.csv")
-        cooccurrence_matrix.to_csv(output_matrix_path)
-        print(f"Co-occurrence matrix saved to {output_matrix_path}.")
+        # Indicate which variants should be phased together
+        print("Phased Variants:")
+        if 'PS' in df.columns:
+            phased_variants = df.dropna(subset=['PS']).groupby('PS')
+            for ps, group in phased_variants:
+                variants = group['variant_name'].values
+                print(f"Phase set {ps}: {variants}")
+        else:
+            print("No 'PS' column found in the VCF file.")
+
+        # Parse the modified VCF and build co-occurrence matrices
+        vcf_df = parse_vcf(output_vcf)
+        cooccurrence_matrix_counts = self.build_cooccurrence_matrix(vcf_df, barcode_prefix, 'COUNT')
+        cooccurrence_matrix_freqs = self.build_cooccurrence_matrix(vcf_df, barcode_prefix, 'FREQ')
+
+        # Save the matrices to CSV files
+        output_matrix_path_counts = os.path.join(self.output_matrix_folder, f"{os.path.basename(output_vcf).split('.')[0]}_matrix_counts.csv")
+        output_matrix_path_freqs = os.path.join(self.freq_matrix_folder, f"{os.path.basename(output_vcf).split('.')[0]}_matrix_freqs.csv")
+        cooccurrence_matrix_counts.to_csv(output_matrix_path_counts)
+        cooccurrence_matrix_freqs.to_csv(output_matrix_path_freqs)
+        print(f"Co-occurrence matrix (counts) saved to {output_matrix_path_counts}.")
+        print(f"Co-occurrence matrix (freqs) saved to {output_matrix_path_freqs}.")
+
+    def build_cooccurrence_matrix(self, vcf_df, barcode_prefix, value_type):
+        # Read the known variants file
+        known_variants_df = pd.read_csv(self.known_variants_file, sep='\t')
+
+        # Extract variant names and their values (counts or frequencies) for the specific barcode
+        variant_values = {}
+        value_suffix = 'VARIANT_COUNT' if value_type == 'COUNT' else 'VARIANT_FREQ'
+        for variant_name in known_variants_df['variant_name']:
+            value_column = f"{barcode_prefix}_{value_suffix}"
+            if value_column in known_variants_df.columns:
+                value = known_variants_df.loc[known_variants_df['variant_name'] == variant_name, value_column].values[0]
+                if value_type == 'FREQ':
+                    value = float(value.strip('%'))  # Remove '%' and convert to float
+                variant_values[variant_name] = value
+
+        # Debugging output for variant values
+        print("Variant values extracted from known variants file:")
+        for variant, value in variant_values.items():
+            print(f"{variant}: {value}")
+
+        # All variants, including unphased ones
+        all_variants = vcf_df['variant_name'].unique()
+        cooccurrence_df = pd.DataFrame(0, index=all_variants, columns=all_variants, dtype=float if value_type == 'FREQ' else int)
+
+        # Initially populate the diagonal with values for each variant using known_variants_df
+        for variant in all_variants:
+            if variant in variant_values:
+                cooccurrence_df.at[variant, variant] = variant_values[variant]
+
+        # Process phased variants for off-diagonal entries
+        if 'PS' in vcf_df.columns:
+            phased_variants = vcf_df.dropna(subset=['PS'])
+            phase_groups = phased_variants.groupby('PS')
+
+            for ps, group in phase_groups:
+                variants = group['variant_name'].values
+                print(f"Phase set {ps}: {variants}")  # Debugging output
+                for i, variant_i in enumerate(variants):
+                    for j, variant_j in enumerate(variants):
+                        if i != j:
+                            # Use the minimum value from known_variants_df for the phased variants
+                            value_i = variant_values.get(variant_i, 0)
+                            value_j = variant_values.get(variant_j, 0)
+                            min_value = min(value_i, value_j)
+                            print(f"Updating co-occurrence for {variant_i} and {variant_j} with value {min_value}")
+                            cooccurrence_df.at[variant_i, variant_j] = min_value
+                            cooccurrence_df.at[variant_j, variant_i] = min_value  # Ensure symmetry
+
+                            # Debugging output to check if values are being updated
+                            print(f"Updated co-occurrence for {variant_i} and {variant_j} with value {min_value}")
+
+        # Debugging output to print the co-occurrence matrix
+        print("Co-occurrence matrix:")
+        print(cooccurrence_df)
+
+        return cooccurrence_df
 
 def parse_vcf(vcf_path):
     # Read VCF into DataFrame, skipping headers that start with '##'
@@ -169,8 +243,8 @@ def parse_vcf(vcf_path):
         vcf_df[field] = data_fields[i].apply(lambda x: x.split(',') if isinstance(x, str) and ',' in x else x)
 
     # Extract AD and PS from the data, handling missing PS and AD fields
-    if 'PS' in vcf_df.columns:
-        vcf_df['PS'] = pd.to_numeric(vcf_df['PS'], errors='coerce')
+    if 'PS' in format_fields.iloc[0].values:
+        vcf_df['PS'] = data_fields[format_fields.iloc[0].tolist().index('PS')].apply(pd.to_numeric, errors='coerce')
     else:
         vcf_df['PS'] = None
 
@@ -178,34 +252,7 @@ def parse_vcf(vcf_path):
 
     return vcf_df
 
-def build_cooccurrence_matrix(vcf_df):
-    # All variants, including unphased ones
-    all_variants = vcf_df['variant_name'].unique()
-    cooccurrence_df = pd.DataFrame(0, index=all_variants, columns=all_variants, dtype=int)
 
-    # Initially populate the diagonal with allele counts for each variant
-    for _, row in vcf_df.iterrows():
-        variant = row['variant_name']
-        allele_count = row['AD'][1] if len(row['AD']) > 1 else 0
-        cooccurrence_df.at[variant, variant] += allele_count
-
-    # Process phased variants for off-diagonal entries
-    phased_variants = vcf_df.dropna(subset=['PS'])
-    phase_groups = phased_variants.groupby('PS')
-
-    for _, group in phase_groups:
-        variants = group['variant_name'].values
-        ad_values = group['AD'].apply(lambda x: x[1] if len(x) > 1 else 0)
-
-        for i, variant_i in enumerate(variants):
-            for j, variant_j in enumerate(variants):
-                if i != j:
-                    min_value = min(ad_values.iloc[i], ad_values.iloc[j])
-                    cooccurrence_df.at[variant_i, variant_j] += min_value
-
-    return cooccurrence_df
-
-# Example usage
 input_vcf_folder = sys.argv[1]
 input_bam_folder = sys.argv[2]
 reference_genome = sys.argv[3]
@@ -213,7 +260,11 @@ gene_name = str(sys.argv[4])
 intermediate_folder = sys.argv[5]
 output_folder = sys.argv[6]
 output_matrix_folder = sys.argv[7]
+freq_matrix_folder = sys.argv[8]
+known_variants_file = sys.argv[9]
 
-workflow = VCFWorkflow(input_vcf_folder, input_bam_folder, reference_genome, gene_name, intermediate_folder, output_folder, output_matrix_folder)
+workflow = VCFWorkflow(input_vcf_folder, input_bam_folder, reference_genome, gene_name, intermediate_folder, output_folder, output_matrix_folder, freq_matrix_folder, known_variants_file)
 workflow.extract_variants()
 workflow.phase_vcfs()
+
+
