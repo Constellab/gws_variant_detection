@@ -1,20 +1,23 @@
 import os
 import pandas as pd
 import subprocess
+import numpy as np
+import re
 import sys
 
 class VCFWorkflow:
-    def __init__(self, input_vcf_folder, input_bam_folder, reference_genome, gene_name, intermediate_folder, output_folder, output_matrix_folder, freq_matrix_folder, known_variants_file):
+    def __init__(self, input_vcf_folder, input_bam_folder, reference_genome, gene_name, intermediate_folder, output_folder, output_matrix_folder, freq_matrix_folder, known_variants_file, reads_to_process):
         self.input_vcf_folder = input_vcf_folder
-        self.intermediate_folder = intermediate_folder
         self.input_bam_folder = input_bam_folder
+        self.reference_genome = reference_genome
+        self.gene_name = gene_name
+        self.intermediate_folder = intermediate_folder
         self.output_folder = output_folder
         self.output_matrix_folder = output_matrix_folder  # Folder for count-based matrices
         self.freq_matrix_folder = freq_matrix_folder  # Folder for frequency-based matrices
-        self.reference_genome = reference_genome
-        self.gene_name = gene_name
         self.known_variants_file = known_variants_file
         self.gene_positions = self.get_gene_positions()
+        self.reads_to_process = reads_to_process  # Pass total reads 5000
 
     def create_folder(self, folder_path):
         """Ensure a folder exists; if not, create it."""
@@ -225,6 +228,73 @@ class VCFWorkflow:
 
         return cooccurrence_df
 
+    def calculate_wildtype_frequencies_from_matrices(self):
+        """Calculate wild-type frequencies and save results to a file."""
+        output_file = os.path.join(self.output_matrix_folder, "wildtype_frequencies.csv")
+        results = []
+
+        for matrix_file in os.listdir(self.output_matrix_folder):
+            if matrix_file.endswith('_matrix_counts.csv'):
+                matrix_path = os.path.join(self.output_matrix_folder, matrix_file)
+
+                # Load co-occurrence matrix into DataFrame
+                df_co_occ = pd.read_csv(matrix_path, index_col=0)
+
+                # Convert the DataFrame to a numpy array for computation
+                co_occurrence_matrix = np.array(df_co_occ)
+
+                # Total number of reads (defined when initializing the workflow)
+                total_reads = self.reads_to_process
+
+                # Sum of diagonal elements: reads with at least 1 variant
+                reads_with_at_least_one_variant = np.sum(np.diag(co_occurrence_matrix))
+
+                # Sum of the upper triangular part (excluding the diagonal): reads with exactly 2 variants
+                upper_triangular_without_diagonal = np.triu(co_occurrence_matrix, k=1)
+                reads_with_exactly_two_variants = np.sum(upper_triangular_without_diagonal)
+
+                # Subtract the off-diagonal (reads with exactly 2 variants) to avoid double-counting
+                reads_with_variants = reads_with_at_least_one_variant - reads_with_exactly_two_variants
+
+                # Reads with 0 variants
+                reads_with_no_variants = total_reads - reads_with_variants
+
+                # If sum_no_mut (reads_with_no_variants) is negative, set it to 0
+                if reads_with_no_variants < 0:
+                    reads_with_no_variants = 0
+
+                # Store only the "Reads with 0 variants" count and percentage
+                frequency_wildtype = round((reads_with_no_variants / total_reads) * 100, 2)
+
+                # If frequency_wildtype is negative, set it to 0
+                if frequency_wildtype < 0:
+                    frequency_wildtype = 0
+
+                # Extract sample name from the file name
+                sample_name = matrix_file.replace('_matrix_counts.csv', '')
+
+                # Append results for this sample
+                results.append([sample_name, reads_with_no_variants, frequency_wildtype])
+
+        # Create a DataFrame for results
+        results_df = pd.DataFrame(results, columns=['Sample', 'Count', 'Frequency'])
+
+        # Function to extract the numeric barcode from the sample name
+        def extract_barcode_number(sample_name):
+            match = re.search(r'barcode(\d+)', sample_name)
+            if match:
+                return int(match.group(1))  # Extract the numeric barcode part as an integer
+            return float('inf')  # If no barcode is found, put it at the end when sorting
+
+        # Sort the DataFrame by the extracted barcode number
+        results_df['Barcode_Num'] = results_df['Sample'].apply(extract_barcode_number)
+        results_df = results_df.sort_values('Barcode_Num').drop('Barcode_Num', axis=1)
+
+        # Write sorted DataFrame to a CSV file
+        results_df.to_csv(output_file, index=False)
+
+        print(f"Wild-type frequencies saved to {output_file}")
+
 def parse_vcf(vcf_path):
     # Read VCF into DataFrame, skipping headers that start with '##'
     vcf_df = pd.read_csv(vcf_path, comment='#', sep='\t', header=None,
@@ -252,7 +322,6 @@ def parse_vcf(vcf_path):
 
     return vcf_df
 
-
 input_vcf_folder = sys.argv[1]
 input_bam_folder = sys.argv[2]
 reference_genome = sys.argv[3]
@@ -262,9 +331,11 @@ output_folder = sys.argv[6]
 output_matrix_folder = sys.argv[7]
 freq_matrix_folder = sys.argv[8]
 known_variants_file = sys.argv[9]
+reads_to_process = int(sys.argv[10])
 
-workflow = VCFWorkflow(input_vcf_folder, input_bam_folder, reference_genome, gene_name, intermediate_folder, output_folder, output_matrix_folder, freq_matrix_folder, known_variants_file)
+workflow = VCFWorkflow(input_vcf_folder, input_bam_folder, reference_genome, gene_name, intermediate_folder, output_folder, output_matrix_folder, freq_matrix_folder, known_variants_file, reads_to_process)
 workflow.extract_variants()
 workflow.phase_vcfs()
+workflow.calculate_wildtype_frequencies_from_matrices()
 
 

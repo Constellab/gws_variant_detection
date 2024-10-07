@@ -58,12 +58,16 @@ class VariantsHaplotypes(Task):
             ResourceSet, human_name="FREQ Co-occurence matrix",
             short_description="Multiple Variant Detection Tables in term of FREQUENCIES"),
 
+        'wildtype_frequencies':OutputSpec(Table, human_name="wildtype_frequencies", short_description="Wildetype frequency per barcode"),
+
     })
 
     config_specs: ConfigSpecs = {
         "gene_name":
         StrParam(allowed_values=["Cytb","OSBP","Tubulin","ATPase"], default_value="Cytb",
-                 short_description="Targeted gene")
+                 short_description="Targeted gene"),
+        "reads_to_process": IntParam(default_value=5000, min_value=3000, short_description="Number of reads to process")
+
     }
 
     python_file_path = os.path.join(
@@ -83,6 +87,7 @@ class VariantsHaplotypes(Task):
         known_variants_table: Table = inputs['known_variants_file']
         reference_genome: File = inputs['reference_genome']
         gene_name = params["gene_name"]
+        reads_to_process = params["reads_to_process"]
 
         # Execute the command
         shell_proxy = VariantsShellProxyHelper.create_proxy(self.message_dispatcher)
@@ -109,7 +114,7 @@ class VariantsHaplotypes(Task):
 
 
         # call python file
-        cmd = f"python3 {self.python_file_path} {input_vcf_folder.path} {input_bam_folder.path} {reference_genome.path } {str(gene_name)} {known_variants_vcf_files_path} {phased_known_variants_vcf_files_path} {output_matrix_folder_path} {freq_matrix_folder_path} {file.path}"
+        cmd = f"python3 {self.python_file_path} {input_vcf_folder.path} {input_bam_folder.path} {reference_genome.path } {str(gene_name)} {known_variants_vcf_files_path} {phased_known_variants_vcf_files_path} {output_matrix_folder_path} {freq_matrix_folder_path} {file.path} {int(reads_to_process)}"
         result = shell_proxy.run(cmd, shell_mode=True)
 
         if result != 0:
@@ -140,14 +145,19 @@ class VariantsHaplotypes(Task):
                 table = TableImporter.call(File(file_path))
                 resource_set_FREQ.add_resource(table, filename)
 
+
+        ## Wildtype frequency per barcode :
+        wildtype_frequencies_path = os.path.join(output_matrix_folder_path, 'wildtype_frequencies.csv')
+        wildtype_frequencies_table = TableImporter.call(File(wildtype_frequencies_path), {'delimiter': ',', 'header': 0, 'file_format': 'csv'})
+
         # Return the outputs
         return {
             'output_folder': phased_known_variants_vcf_files,
             'output_matrix_folder': output_matrix_folder,
             'freq_matrix_folder':freq_matrix_folder,
             'resource_set':resource_set,
-            'resource_set_FREQ':resource_set_FREQ
-
+            'resource_set_FREQ':resource_set_FREQ,
+            'wildtype_frequencies':wildtype_frequencies_table
         }
 
     def run_after_task(self):
