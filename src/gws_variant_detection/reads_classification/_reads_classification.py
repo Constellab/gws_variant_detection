@@ -55,7 +55,7 @@ class ReadClassifier:
 input_dir = sys.argv[1]
 output_dir = sys.argv[3]
 merged_reference_fasta = sys.argv[2]
-identity_threshold = 75  # Example threshold
+identity_threshold = 60  # Example threshold
 
     # Initialize and run the classifier
 classifier = ReadClassifier(input_dir, output_dir, merged_reference_fasta, identity_threshold)
