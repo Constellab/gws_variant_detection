@@ -52,11 +52,17 @@ class BAMClassifier:
                 "Sample": sample_name,
                 "Total_Reads": total_reads,
                 "Type_1_Count": len(classified_reads["Type_1"]),
+                "Type_1_Frequency": round((len(classified_reads["Type_1"]) / total_reads) * 100, 2) if total_reads > 0 else 0,
                 "Type2_338_Count": len(classified_reads["Type2_338"]),
+                "Type2_338_Frequency": round((len(classified_reads["Type2_338"]) / total_reads) * 100, 2) if total_reads > 0 else 0,
                 "Type2_369_Count": len(classified_reads["Type2_369"]),
+                "Type2_369_Frequency": round((len(classified_reads["Type2_369"]) / total_reads) * 100, 2) if total_reads > 0 else 0,
                 "Type_3_Count": len(classified_reads["Type_3"]),
+                "Type_3_Frequency": round((len(classified_reads["Type_3"]) / total_reads) * 100, 2) if total_reads > 0 else 0,
                 "Ref_Similar_Count": len(classified_reads["Ref_Similar"]),
-                "Other_Count": len(classified_reads["Other"])
+                "Ref_Similar_Frequency": round((len(classified_reads["Ref_Similar"]) / total_reads) * 100, 2) if total_reads > 0 else 0,
+                "Other_Count": len(classified_reads["Other"]),
+                "Other_Frequency": round((len(classified_reads["Other"]) / total_reads) * 100, 2) if total_reads > 0 else 0
             })
 
             # Save insertion sizes to the newly created insertion_sizes directory
