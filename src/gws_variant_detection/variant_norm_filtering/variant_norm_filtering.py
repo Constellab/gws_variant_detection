@@ -5,9 +5,9 @@
 
 import os
 
-from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,ShellProxy,
+from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder, ShellProxy,
                       InputSpecs, IntParam, OutputSpec, OutputSpecs, Task,
-                      TaskInputs, TaskOutputs, task_decorator, StrParam, Table , TableImporter)
+                      TaskInputs, TaskOutputs, task_decorator, StrParam, Table, TableImporter)
 
 
 from ..base_env.Variants_env import VariantsShellProxyHelper
@@ -42,7 +42,7 @@ class VariantsFiltering(Task):
 
     config_specs: ConfigSpecs = {
         "gene_name":
-        StrParam(allowed_values=["Cytb","OSBP","Tubulin","ATPase"], default_value="Cytb",
+        StrParam(allowed_values=["Cytb", "OSBP", "Tubulin", "ATPase"], default_value="Cytb",
                  short_description="Targeted gene"),
         "reads_to_process": IntParam(default_value=5000, min_value=3000, short_description="Number of reads to process")
     }
@@ -71,7 +71,6 @@ class VariantsFiltering(Task):
         known_unknown_result_path = os.path.join(shell_proxy.working_dir, 'known_unknown_files')
         os.makedirs(known_unknown_result_path)
 
-
         # call python file
         cmd = f"python3 {self.python_file_path} {input_folder.path} {input_file.path } {str(gene_name)} {int(reads_to_process)} {normalized_result_path} {known_unknown_result_path}"
         shell_proxy.run(cmd, shell_mode=True)
@@ -85,8 +84,12 @@ class VariantsFiltering(Task):
         known_variants_file_path = os.path.join(known_unknown_result_path, 'known_variants_filtered.tsv')
         unknown_variants_file_path = os.path.join(known_unknown_result_path, 'unknown_variants.tsv')
 
-        known_variants_table = TableImporter.call(File(known_variants_file_path), {'delimiter': 'tab', 'header': 0, 'file_format': 'tsv'})
-        unknown_variants_table = TableImporter.call(File(unknown_variants_file_path), {'delimiter': 'tab', 'header': 0, 'file_format': 'tsv'})
+        known_variants_table = TableImporter.call(
+            File(known_variants_file_path),
+            {'delimiter': 'tab', 'header': 0, 'file_format': 'tsv'})
+        unknown_variants_table = TableImporter.call(
+            File(unknown_variants_file_path),
+            {'delimiter': 'tab', 'header': 0, 'file_format': 'tsv'})
 
         # Return the outputs
         return {

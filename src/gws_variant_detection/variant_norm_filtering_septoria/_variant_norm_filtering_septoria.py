@@ -106,6 +106,14 @@ class VCFNormalizer:
                 {'variant_name': 'C372R', 'CHROM': 'CYP51', 'POS': 1398, 'REF': 'T', 'ALT': 'C'},
                 {'variant_name': 'A379G', 'CHROM': 'CYP51', 'POS': 1408, 'REF': 'C', 'ALT': 'G'},
                 {'variant_name': 'I381V', 'CHROM': 'CYP51', 'POS': 1413, 'REF': 'A', 'ALT': 'G'},
+                {'variant_name': 'S524T', 'CHROM': 'CYP51', 'POS': 1854, 'REF': 'T', 'ALT': 'A'},
+                {'variant_name': 'Y459S', 'CHROM': 'CYP51', 'POS': 1648, 'REF': 'A', 'ALT': 'C'},
+                {'variant_name': 'Y459', 'CHROM': 'CYP51', 'POS': 1646, 'REF': 'CTAT', 'ALT': 'C'},
+                {'variant_name': 'G460', 'CHROM': 'CYP51', 'POS': 1649, 'REF': 'TGGC', 'ALT': 'T'},
+                {'variant_name': 'Y461S', 'CHROM': 'CYP51', 'POS': 1654, 'REF': 'A', 'ALT': 'C'},
+                {'variant_name': 'Y461H', 'CHROM': 'CYP51', 'POS': 1653, 'REF': 'T', 'ALT': 'C'},
+                {'variant_name': 'N513K_AAA', 'CHROM': 'CYP51', 'POS': 1811, 'REF': 'C', 'ALT': 'A'},
+                {'variant_name': 'N513K_AAG', 'CHROM': 'CYP51', 'POS': 1811, 'REF': 'C', 'ALT': 'G'},
                 {'variant_name': 'S524T', 'CHROM': 'CYP51', 'POS': 1854, 'REF': 'T', 'ALT': 'A'}
             ],
             'CytB': [
