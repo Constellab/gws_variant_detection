@@ -43,14 +43,12 @@ class SeptoriaInsertionsMfs1(Task):
     })
 
     config_specs: ConfigSpecs = {
-        "mdr_tolerence": IntParam(default_value=20, min_value=0, short_description="This parameter defines the acceptable variation (in base pairs) around the expected insertion sizes for classifying reads. "),
-        "ref_tolerance": IntParam(default_value=20, min_value=0, short_description="This parameter specifies the tolerance (in base pairs) for classifying reads as Ref_Similar indicating how much deviation from the reference size is allowed for a read to be considered similar to the reference.")
 
     }
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),
-        "_variant_insertion_mfs1.py"
+        "_variant_insertion_mfs1_septoria.py"
     )
 
     shell_proxy: ShellProxy = None
@@ -61,8 +59,6 @@ class SeptoriaInsertionsMfs1(Task):
         # retrive the input table
         input_folder: Folder = inputs['input_folder']
         input_file: File = inputs['input_file']
-        mdr_tolerence = params["mdr_tolerence"]
-        ref_tolerance = params["ref_tolerance"]
 
         # Execute the command
         shell_proxy = VariantsShellProxyHelper.create_proxy(self.message_dispatcher)
@@ -74,7 +70,7 @@ class SeptoriaInsertionsMfs1(Task):
 
 
         # call python file
-        cmd = f"python3 {self.python_file_path} {input_folder.path} {alignment_result_path} {per_read_insertion_size_result_path} {input_file.path} {int(mdr_tolerence)} {int(ref_tolerance)}"
+        cmd = f"python3 {self.python_file_path} {input_folder.path} {alignment_result_path} {per_read_insertion_size_result_path} {input_file.path}"
         shell_proxy.run(cmd, shell_mode=True)
         self.shell_proxy = shell_proxy
 

@@ -6,25 +6,23 @@ import re  # Import re for regex operations
 import sys
 
 class BAMClassifier:
-    def __init__(self, bam_dir, output_dir, insertion_sizes_dir, reference_fasta, tolerance=30, ref_tolerance=30):
+    def __init__(self, bam_dir, output_dir, insertion_sizes_dir, reference_fasta,
+                 type_1_tolerance=100, type2_338_tolerance=100, type2_369_tolerance=100,
+                 type_3_tolerance=50, ref_tolerance=50):
         self.bam_dir = bam_dir
         self.output_dir = output_dir
         self.insertion_sizes_dir = insertion_sizes_dir
-        self.tolerance = tolerance
-        self.ref_tolerance = ref_tolerance
         self.reference_fasta = reference_fasta
-        self.ref_size = self._get_reference_size()
 
-    def _get_reference_size(self):
-        # Calculate reference size using pysam
-        with pysam.FastaFile(self.reference_fasta) as fasta:
-            ref_length = 0
-            for seq in fasta.references:
-                ref_length = fasta.get_reference_length(seq)
-                break
-        print(f"Reference sequence size: {ref_length} bp")
+        # Set specific tolerances for each classification type
+        self.type_1_tolerance = type_1_tolerance
+        self.type2_338_tolerance = type2_338_tolerance
+        self.type2_369_tolerance = type2_369_tolerance
+        self.type_3_tolerance = type_3_tolerance
+        self.ref_tolerance = ref_tolerance
 
-        return ref_length
+        # Set the adjusted reference size based on observed read length distribution
+        self.ref_size = 552  # Mean read length for reference reads
 
     def classify_samples(self):
         # List BAM files in the directory
@@ -39,14 +37,14 @@ class BAMClassifier:
             sample_name = os.path.splitext(bam_file)[0]
 
             # Classify reads in the BAM file
-            classified_reads, insertion_sizes = self._classify_reads(bam_path, sample_name)
+            classified_reads, read_lengths = self._classify_reads(bam_path, sample_name)
 
             # Write classified reads to new BAM files
             for res_type, reads in classified_reads.items():
                 bam_output_path = os.path.join(self.output_dir, f"{sample_name}_{res_type}.bam")
                 self._write_bam(reads, bam_path, bam_output_path)
 
-            # Collect summary data
+            # Calculate the total reads and frequencies for each classification type
             total_reads = sum(len(reads) for reads in classified_reads.values())
             summary_data.append({
                 "Sample": sample_name,
@@ -65,12 +63,12 @@ class BAMClassifier:
                 "Other_Frequency": round((len(classified_reads["Other"]) / total_reads) * 100, 2) if total_reads > 0 else 0
             })
 
-            # Save insertion sizes to the newly created insertion_sizes directory
-            insertion_sizes_path = os.path.join(self.insertion_sizes_dir, f"{sample_name}_insertion_sizes.txt")
-            with open(insertion_sizes_path, "w") as f:
-                f.write("Sample\tRead_Name\tInsertion_Size\tClassification\n")
-                for sample, read_name, size, classification in insertion_sizes:
-                    f.write(f"{sample}\t{read_name}\t{size}\t{classification}\n")
+            # Save read lengths and classifications to a text file
+            lengths_path = os.path.join(self.insertion_sizes_dir, f"{sample_name}_read_lengths.txt")
+            with open(lengths_path, "w") as f:
+                f.write("Sample\tRead_Name\tRead_Length\tClassification\n")
+                for sample, read_name, length, classification in read_lengths:
+                    f.write(f"{sample}\t{read_name}\t{length}\t{classification}\n")
 
         # Save summary data to CSV
         summary_df = pd.DataFrame(summary_data)
@@ -99,7 +97,7 @@ class BAMClassifier:
             "Ref_Similar": [],
             "Other": []
         }
-        insertion_sizes = []
+        read_lengths = []
 
         with pysam.AlignmentFile(bam_path, "rb") as bam_file:
             for read in bam_file:
@@ -107,41 +105,37 @@ class BAMClassifier:
                 if read.is_secondary or read.is_supplementary:
                     continue
 
-                insertion_size = self._calculate_insertion_size(read)
-                res_type = self._classify_insertion(insertion_size)
+                read_length = read.query_length
+                res_type = self._classify_by_read_length(read_length)
                 classified_reads[res_type].append(read)
-                insertion_sizes.append((sample_name, read.query_name, insertion_size, res_type))
+                read_lengths.append((sample_name, read.query_name, read_length, res_type))
 
-        return classified_reads, insertion_sizes
+        return classified_reads, read_lengths
 
-    def _calculate_insertion_size(self, read):
-        # Calculate insertion size based on CIGAR string
-        insertion_size = 0
-        for (operation, length) in read.cigartuples:
-            if operation == 1:  # '1' is the BAM_CINS code for insertion
-                insertion_size += length
-        return insertion_size
+    def _classify_by_read_length(self, read_length):
+        # Define expected sizes for each classification type based on reference size + insertion
+        type_1_size = self.ref_size + 519
+        type2_338_size = self.ref_size + 338
+        type2_369_size = self.ref_size + 369
+        type_3_size = self.ref_size + 150
 
-    def _classify_insertion(self, insertion_size):
-        # Total size of the read considering the reference size
-        total_size = self.ref_size + insertion_size
-
-        # Classification based on total size
-        if total_size >= (self.ref_size + 519) - self.tolerance and total_size <= (self.ref_size + 519) + self.tolerance:  # Type_1
+        # Classification based on the calculated read length and specified tolerance for each type
+        if (type_1_size - self.type_1_tolerance) <= read_length <= (type_1_size + self.type_1_tolerance):
             return "Type_1"
-        elif total_size >= (self.ref_size + 338) - self.tolerance and total_size <= (self.ref_size + 338) + self.tolerance:  # Type2_338
+        elif (type2_338_size - self.type2_338_tolerance) <= read_length <= (type2_338_size + self.type2_338_tolerance):
             return "Type2_338"
-        elif total_size >= (self.ref_size + 369) - self.tolerance and total_size <= (self.ref_size + 369) + self.tolerance:  # Type2_369
+        elif (type2_369_size - self.type2_369_tolerance) <= read_length <= (type2_369_size + self.type2_369_tolerance):
             return "Type2_369"
-        elif total_size >= (self.ref_size + 150) - self.tolerance and total_size <= (self.ref_size + 150) + self.tolerance:  # Type_3
+        elif (type_3_size - self.type_3_tolerance) <= read_length <= (type_3_size + self.type_3_tolerance):
             return "Type_3"
-        elif (self.ref_size - self.ref_tolerance) <= total_size <= (self.ref_size + self.ref_tolerance):  # Ref_Similar
+        elif (self.ref_size - self.ref_tolerance) <= read_length <= (self.ref_size + self.ref_tolerance):
             return "Ref_Similar"
         else:
             return "Other"
 
     def _write_bam(self, reads, original_bam_path, bam_output_path):
         # Write the classified reads to a new BAM file
+        os.makedirs(os.path.dirname(bam_output_path), exist_ok=True)  # Ensure the directory exists
         with pysam.AlignmentFile(original_bam_path, "rb") as original_bam:
             with pysam.AlignmentFile(bam_output_path, "wb", header=original_bam.header) as out_bam:
                 for read in reads:
@@ -160,12 +154,12 @@ bam_dir = sys.argv[1]
 output_dir = sys.argv[2]
 insertion_sizes_dir = sys.argv[3]
 reference_fasta = sys.argv[4]  # Path to your reference genome
-tolerance = int(sys.argv[5])
-ref_tolerance = int(sys.argv[6])
 
-# Create the directories for output and insertion sizes
-os.makedirs(output_dir, exist_ok=True)
-os.makedirs(insertion_sizes_dir, exist_ok=True)
+# Set individual tolerance values for each classification type
+classifier = BAMClassifier(
+    bam_dir, output_dir, insertion_sizes_dir, reference_fasta,
+    type_1_tolerance=100, type2_338_tolerance=40, type2_369_tolerance=40,
+    type_3_tolerance=100, ref_tolerance=50
+)
 
-classifier = BAMClassifier(bam_dir, output_dir, insertion_sizes_dir, reference_fasta, tolerance=tolerance, ref_tolerance=ref_tolerance)
 classifier.classify_samples()
