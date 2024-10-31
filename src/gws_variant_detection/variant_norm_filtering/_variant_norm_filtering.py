@@ -242,12 +242,7 @@ class VCFNormalizer:
                 {'variant_name': 'C239S_TCC', 'CHROM': 'Tubulin', 'POS': 1542, 'REF': 'G', 'ALT': 'C'}
             ],
             'ATPase': [
-                {'variant_name': 'G759S', 'CHROM': 'ATPase', 'POS': 2857, 'REF': 'G', 'ALT': 'A'},
-                {'variant_name': 'I751V', 'CHROM': 'ATPase', 'POS': 2833, 'REF': 'A', 'ALT': 'G'},
-                {'variant_name': 'G750A', 'CHROM': 'ATPase', 'POS': 2831, 'REF': 'G', 'ALT': 'C'},
-                {'variant_name': 'G750D', 'CHROM': 'ATPase', 'POS': 2831, 'REF': 'G', 'ALT': 'A'},
-                {'variant_name': 'G750S', 'CHROM': 'ATPase', 'POS': 2830, 'REF': 'G', 'ALT': 'A'}
-
+                {'variant_name': 'G759S', 'CHROM': 'ATPase', 'POS': 2857, 'REF': 'G', 'ALT': 'A'}
             ]
         }
 

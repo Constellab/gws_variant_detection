@@ -48,11 +48,7 @@ class VCFWorkflow:
                 {'CHROM': 'Tubulin', 'POS': 1542, 'REF': 'G', 'ALT': 'C'}
             ],
             'ATPase': [
-                {'CHROM': 'ATPase', 'POS': 2857, 'REF': 'G', 'ALT': 'A'},
-                {'CHROM': 'ATPase', 'POS': 2833, 'REF': 'A', 'ALT': 'G'},
-                {'CHROM': 'ATPase', 'POS': 2831, 'REF': 'G', 'ALT': 'C'},
-                {'CHROM': 'ATPase', 'POS': 2831, 'REF': 'G', 'ALT': 'A'},
-                {'CHROM': 'ATPase', 'POS': 2830, 'REF': 'G', 'ALT': 'A'}
+                {'CHROM': 'ATPase', 'POS': 2857, 'REF': 'G', 'ALT': 'A'}
             ]
         }
         return positions.get(self.gene_name, [])
@@ -139,10 +135,6 @@ class VCFWorkflow:
             ('Tubulin', 1541, 'T', 'G'): 'C239G_GGC',
             ('Tubulin', 1542, 'G', 'C'): 'C239S_TCC',
             ('ATPase', 2857, 'G', 'A'): 'G759S',
-            ('ATPase', 2833, 'A', 'G'): 'I751V',
-            ('ATPase', 2831, 'G', 'C'): 'G750A',
-            ('ATPase', 2831, 'G', 'A'): 'G750D',
-            ('ATPase', 2830, 'G', 'A'): 'G750S',
             # Add more mappings for other genes if needed
         }
 
