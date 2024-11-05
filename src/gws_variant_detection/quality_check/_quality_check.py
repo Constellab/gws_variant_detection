@@ -22,18 +22,18 @@ class NanoPlotQualityChecker:
         for fastq_file in fastq_files:
             input_path = os.path.join(self.input_folder, fastq_file)
             output_path = os.path.join(self.output_folder, fastq_file.split('.')[0])  # Output path construction
-            nanoplot_cmd = f'NanoPlot --fastq {input_path} -o {output_path} --threads {self.num_threads}  --tsv_stats --raw'
+            nanoplot_cmd = f'NanoPlot --fastq {input_path} -o {output_path} --threads {self.num_threads} --tsv_stats --raw'
             subprocess.run(nanoplot_cmd, shell=True)
-
 
 class NanoPlotSummary:
     def __init__(self, quality_output_folder):
         self.quality_output_folder = quality_output_folder
-        self.desired_columns = ['number_of_reads', 'number_of_bases', 'median_read_length', 'mean_read_length', 'Reads >Q5:', 'Reads >Q7:', 'Reads >Q10:', 'Reads >Q12:', 'Reads >Q15:']
+        self.desired_columns = ['number_of_reads', 'number_of_bases', 'median_read_length', 'mean_read_length',
+                                'Reads >Q5:', 'Reads >Q7:', 'Reads >Q10:', 'Reads >Q12:', 'Reads >Q15:']
 
     def clean_column_names(self, df):
         # Remove the colon ":" from specific column names
-        df.columns = df.columns.str.replace(':', '')
+        df.columns = df.columns.str.replace(':', '', regex=True)
 
     def merge_nano_stats(self):
         # Initialize an empty DataFrame to store merged data
@@ -67,15 +67,18 @@ class NanoPlotSummary:
         # Transpose the DataFrame to have barcodes as rows and metrics as columns
         merged_data = merged_data.transpose()
 
+        # Extract the barcode number from the index, sort, and then reindex the DataFrame
+        merged_data['Barcode_Number'] = merged_data.index.to_series().str.extract(r'barcode(\d+)-')[0].astype(int)
+        merged_data.sort_values(by='Barcode_Number', inplace=True)
+        merged_data.drop(columns=['Barcode_Number'], inplace=True)
+
         # Clean column names
         self.clean_column_names(merged_data)
-
         # Write the merged DataFrame to a single NanoStats.txt file
         output_file = 'NanoStats_Summary.txt'
+        
         merged_data.to_csv(output_file, sep='\t')
 
-        # Remove ":" from column names for display
-        self.desired_columns = [col.replace(':', '') for col in self.desired_columns]
 
 
 # Example usage
