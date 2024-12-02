@@ -1,0 +1,12 @@
+name: haplotypes_env
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - numpy
+  - pandas
+  - pysam
+  - bcftools
+  - samtools
+  - minimap2
+  - make
