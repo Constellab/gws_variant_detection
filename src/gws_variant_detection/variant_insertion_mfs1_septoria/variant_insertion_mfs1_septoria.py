@@ -10,7 +10,7 @@ from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,ShellPr
                       TaskInputs, TaskOutputs, task_decorator, StrParam, Table , TableImporter)
 
 
-from ..base_env.Variants_env import VariantsShellProxyHelper
+from ..base_env.Mfs_env import MfsShellProxyHelper
 
 
 @task_decorator("SeptoriaInsertionsMfs1", human_name="SeptoriaInsertionsMfs1",
@@ -23,27 +23,24 @@ class SeptoriaInsertionsMfs1(Task):
     input_specs = InputSpecs({
         'input_folder':
         InputSpec(
-            Folder, human_name="Folder containing the different alignment files"),
-        'input_file':
+            Folder, human_name="Folder containing the alignment BAM files"),
+        'reference_fasta':
         InputSpec(
-            File, human_name="File containing MFS1 gene reference sequence")
+            File, human_name="Combined reference sequences in FASTA format")
     })
 
     output_specs = OutputSpecs({
         'output_bam_path':
         OutputSpec(
-            Folder, human_name="Per insertions alignment files",
-            short_description="A folder containing the different alignment files based on insertion size"),
-        'output_insertion_size_path':
-        OutputSpec(
-            Folder, human_name="Per read insertion size in each sample",
-            short_description="A folder containing the different insertion size in each read"),
-        'classification_summary': OutputSpec(Table, human_name="Classification summary", short_description="Table contains a summary of the read classifications for each sample"),
-
+            Folder, human_name="Classified BAM files",
+            short_description="A folder containing the alignment files classified by reference type"),
+        'classification_summary': OutputSpec(Table, human_name="Classification summary", short_description="Table containing a summary of the read classifications for each sample"),
     })
 
-    config_specs: ConfigSpecs = {
 
+    config_specs: ConfigSpecs = {
+        "identity_threshold": IntParam(default_value=70, min_value=60, short_description=" Identity threshold"),
+        "coverage_threshold": IntParam(default_value=70, min_value=60, short_description="Coverage threshold")
     }
 
     python_file_path = os.path.join(
@@ -58,36 +55,33 @@ class SeptoriaInsertionsMfs1(Task):
 
         # retrive the input table
         input_folder: Folder = inputs['input_folder']
-        input_file: File = inputs['input_file']
+        reference_fasta: File = inputs['reference_fasta']
+        identity_threshold = params["identity_threshold"]
+        coverage_threshold = params["coverage_threshold"]
 
         # Execute the command
-        shell_proxy = VariantsShellProxyHelper.create_proxy(self.message_dispatcher)
+        shell_proxy = MfsShellProxyHelper.create_proxy(self.message_dispatcher)
         alignment_result_path = os.path.join(shell_proxy.working_dir, 'Alignment_bam_files')
         os.makedirs(alignment_result_path)
 
-        per_read_insertion_size_result_path = os.path.join(shell_proxy.working_dir, 'per_read_insertion_size')
-        os.makedirs(per_read_insertion_size_result_path)
-
 
         # call python file
-        cmd = f"python3 {self.python_file_path} {input_folder.path} {alignment_result_path} {per_read_insertion_size_result_path} {input_file.path}"
+        cmd = f"python3 {self.python_file_path} {input_folder.path} {alignment_result_path} {reference_fasta.path} {int(identity_threshold)} {int(coverage_threshold)}"
         shell_proxy.run(cmd, shell_mode=True)
         self.shell_proxy = shell_proxy
 
         # display outputs :
         # 1_normalized vcf
         alignment_bam_files = Folder(alignment_result_path)
-        per_read_insertion_size_result_files = Folder(per_read_insertion_size_result_path)
 
         # Read the known and unknown variants from the output path
-        classification_summary_file_path = os.path.join(per_read_insertion_size_result_path, 'classification_summary.csv')
+        classification_summary_file_path = os.path.join(alignment_result_path, 'classification_summary.csv')
 
         classification_summary_table = TableImporter.call(File(classification_summary_file_path), {'delimiter': ',', 'header': 0, 'file_format': 'csv'})
 
         # Return the outputs
         return {
             'output_bam_path': alignment_bam_files,
-            'output_insertion_size_path': per_read_insertion_size_result_files,
             'classification_summary': classification_summary_table,
 
         }

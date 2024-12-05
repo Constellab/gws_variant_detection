@@ -57,7 +57,7 @@ class VariantsHaplotypesSeptoria(Task):
 
     config_specs: ConfigSpecs = {
         "gene_name":
-        StrParam(allowed_values=["Cytb","OSBP","Tubulin","ATPase"], default_value="Cytb",
+        StrParam(allowed_values=["CYP51","CytB","SdhB","SdhC","SdhD"], default_value="CytB",
                  short_description="Targeted gene"),
         "reads_to_process": IntParam(default_value=5000, min_value=3000, short_description="Number of reads to process")
 
@@ -65,7 +65,7 @@ class VariantsHaplotypesSeptoria(Task):
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),
-        "_variant_haplotypes_mildiou.py"
+        "_variant_haplotypes_septoria.py"
     )
 
     shell_proxy: ShellProxy = None
