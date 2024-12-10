@@ -77,7 +77,7 @@ class SeptoriaInsertionsMfs1(Task):
         # Read the known and unknown variants from the output path
         classification_summary_file_path = os.path.join(alignment_result_path, 'classification_summary.csv')
 
-        classification_summary_table = TableImporter.call(File(classification_summary_file_path), {'delimiter': ',', 'header': 0, 'file_format': 'csv'})
+        classification_summary_table = TableImporter.call(File(classification_summary_file_path), {'delimiter': ',', 'header': 0, 'file_format': 'csv', 'index_column': 0})
 
         # Return the outputs
         return {
