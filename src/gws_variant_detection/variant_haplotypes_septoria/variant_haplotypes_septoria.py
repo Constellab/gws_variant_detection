@@ -58,9 +58,7 @@ class VariantsHaplotypesSeptoria(Task):
     config_specs: ConfigSpecs = {
         "gene_name":
         StrParam(allowed_values=["CYP51","CytB","SdhB","SdhC","SdhD"], default_value="CytB",
-                 short_description="Targeted gene"),
-        "reads_to_process": IntParam(default_value=5000, min_value=3000, short_description="Number of reads to process")
-
+                 short_description="Targeted gene")
     }
 
     python_file_path = os.path.join(
@@ -79,7 +77,6 @@ class VariantsHaplotypesSeptoria(Task):
         known_variants_table: Table = inputs['known_variants_file']
         ref_genome: File = inputs['ref_genome']
         gene_name = params["gene_name"]
-        reads_to_process = params["reads_to_process"]
 
         # Setup the minipileup executable
         downloader = TaskFileDownloader(
@@ -126,7 +123,7 @@ class VariantsHaplotypesSeptoria(Task):
 
 
         # call python file
-        cmd = f"python3 {self.python_file_path} {bam_folder.path} {ref_genome.path } {str(gene_name)} {minipileup_file_path} {output_folder_path} {counts_matrices_folder_path} {frequencies_matrices_folder_path} {file.path} {int(reads_to_process)}"
+        cmd = f"python3 {self.python_file_path} {bam_folder.path} {ref_genome.path } {str(gene_name)} {minipileup_file_path} {output_folder_path} {counts_matrices_folder_path} {frequencies_matrices_folder_path} {file.path}"
         result = shell_proxy.run(cmd, shell_mode=True)
 
         if result != 0:
