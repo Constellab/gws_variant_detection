@@ -49,7 +49,7 @@ class FastpFiltering:
 
             # Run Fastp
             ## adapter trimming , -D : dedup elimination on
-            fastp_cmd = f'fastp -i {input_path} -o {fastp_output_path} -D --qualified_quality_phred {self.qualified_quality_phred} --thread {self.num_threads}'
+            fastp_cmd = f'fastp -i {input_path} -o {fastp_output_path} -A -G --qualified_quality_phred {self.qualified_quality_phred} --thread {self.num_threads}'
             result = subprocess.run(fastp_cmd, shell=True)
             if result.returncode != 0:
                 print(f"Error running fastp on {fastq_file}", file=sys.stderr)
