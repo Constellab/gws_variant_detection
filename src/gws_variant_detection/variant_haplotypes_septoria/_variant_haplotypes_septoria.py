@@ -62,7 +62,7 @@ class VCFWorkflow:
             ('CYP51', 1654, 'A', 'C'): 'Y461S',
             ('CYP51', 1811, 'C', 'A'): 'N513K_AAA',
             ('CYP51', 1811, 'C', 'G'): 'N513K_AAG',
-            ('CYP51', 1854, 'T', 'A'): 'S524T',
+            ('CYP51', 1843, 'G', 'C'): 'S524T',
             ('CytB', 110, 'G', 'T'): 'G37V',
             ('CytB', 428, 'G', 'C'): 'G143A',
             ('SdhB', 788, 'A', 'C'): 'N225T',
@@ -428,7 +428,7 @@ gene_positions = {
         {'CHROM': 'CYP51', 'POS': 1654, 'REF': 'A', 'ALT': 'C'},
         {'CHROM': 'CYP51', 'POS': 1811, 'REF': 'C', 'ALT': 'A'},
         {'CHROM': 'CYP51', 'POS': 1811, 'REF': 'C', 'ALT': 'G'},
-        {'CHROM': 'CYP51', 'POS': 1854, 'REF': 'T', 'ALT': 'A'}
+        {'CHROM': 'CYP51', 'POS': 1843, 'REF': 'G', 'ALT': 'C'}
     ],
     'CytB': [
         {'CHROM': 'CytB', 'POS': 110, 'REF': 'G', 'ALT': 'T'},
