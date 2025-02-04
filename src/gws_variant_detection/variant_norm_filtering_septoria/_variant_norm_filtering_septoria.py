@@ -92,29 +92,28 @@ class VCFNormalizer:
         # Define known variants for each gene including new ones
         gene_variants = {
             'CYP51': [
-                {'variant_name': 'L50S', 'CHROM': 'CYP51', 'POS': 149, 'REF': 'T', 'ALT': 'C'},
-                {'variant_name': 'D107V', 'CHROM': 'CYP51', 'POS': 320, 'REF': 'A', 'ALT': 'T'},
-                {'variant_name': 'D134G', 'CHROM': 'CYP51', 'POS': 401, 'REF': 'A', 'ALT': 'G'},
-                {'variant_name': 'V136A', 'CHROM': 'CYP51', 'POS': 407, 'REF': 'T', 'ALT': 'C'},
-                {'variant_name': 'Y137F', 'CHROM': 'CYP51', 'POS': 410, 'REF': 'A', 'ALT': 'T'},
-                {'variant_name': 'M145L_CTG', 'CHROM': 'CYP51', 'POS': 433, 'REF': 'A', 'ALT': 'C'},
-                {'variant_name': 'M145L_TTG', 'CHROM': 'CYP51', 'POS': 433, 'REF': 'A', 'ALT': 'T'},
-                {'variant_name': 'N178S', 'CHROM': 'CYP51', 'POS': 590, 'REF': 'A', 'ALT': 'G'},
-                {'variant_name': 'S188N', 'CHROM': 'CYP51', 'POS': 620, 'REF': 'G', 'ALT': 'A'},
-                {'variant_name': 'S208T', 'CHROM': 'CYP51', 'POS': 679, 'REF': 'T', 'ALT': 'A'},
-                {'variant_name': 'H262Y', 'CHROM': 'CYP51', 'POS': 841, 'REF': 'C', 'ALT': 'T'},
-                {'variant_name': 'C372R', 'CHROM': 'CYP51', 'POS': 1398, 'REF': 'T', 'ALT': 'C'},
-                {'variant_name': 'A379G', 'CHROM': 'CYP51', 'POS': 1408, 'REF': 'C', 'ALT': 'G'},
-                {'variant_name': 'I381V', 'CHROM': 'CYP51', 'POS': 1413, 'REF': 'A', 'ALT': 'G'},
-                {'variant_name': 'S524T', 'CHROM': 'CYP51', 'POS': 1843, 'REF': 'G', 'ALT': 'C'},
-                {'variant_name': 'Y459S', 'CHROM': 'CYP51', 'POS': 1648, 'REF': 'A', 'ALT': 'C'},
-                {'variant_name': 'Y459', 'CHROM': 'CYP51', 'POS': 1646, 'REF': 'CTAT', 'ALT': 'C'},
-                {'variant_name': 'G460', 'CHROM': 'CYP51', 'POS': 1649, 'REF': 'TGGC', 'ALT': 'T'},
-                {'variant_name': 'Y461S', 'CHROM': 'CYP51', 'POS': 1654, 'REF': 'A', 'ALT': 'C'},
-                {'variant_name': 'Y461H', 'CHROM': 'CYP51', 'POS': 1653, 'REF': 'T', 'ALT': 'C'},
-                {'variant_name': 'N513K_AAA', 'CHROM': 'CYP51', 'POS': 1811, 'REF': 'C', 'ALT': 'A'},
-                {'variant_name': 'N513K_AAG', 'CHROM': 'CYP51', 'POS': 1811, 'REF': 'C', 'ALT': 'G'},
-                {'variant_name': 'S524T', 'CHROM': 'CYP51', 'POS': 1854, 'REF': 'T', 'ALT': 'A'}
+                {'variant_name': 'L50S', 'CHROM': 'CYP51', 'POS': 149, 'REF': 'T', 'ALT': 'C'},  #ok
+                {'variant_name': 'D107V', 'CHROM': 'CYP51', 'POS': 320, 'REF': 'A', 'ALT': 'T'}, #ok
+                {'variant_name': 'D134G', 'CHROM': 'CYP51', 'POS': 401, 'REF': 'A', 'ALT': 'G'}, # ok
+                {'variant_name': 'V136A', 'CHROM': 'CYP51', 'POS': 407, 'REF': 'T', 'ALT': 'C'},  ## ok
+                {'variant_name': 'Y137F', 'CHROM': 'CYP51', 'POS': 410, 'REF': 'A', 'ALT': 'T'}, ## ok
+                {'variant_name': 'M145L_CTG', 'CHROM': 'CYP51', 'POS': 433, 'REF': 'A', 'ALT': 'C'},  ## ok
+                {'variant_name': 'M145L_TTG', 'CHROM': 'CYP51', 'POS': 433, 'REF': 'A', 'ALT': 'T'},  ## ok
+                {'variant_name': 'N178S', 'CHROM': 'CYP51', 'POS': 590, 'REF': 'A', 'ALT': 'G'},   ## ok
+                {'variant_name': 'S188N', 'CHROM': 'CYP51', 'POS': 620, 'REF': 'G', 'ALT': 'A'},   ## ok
+                {'variant_name': 'S208T', 'CHROM': 'CYP51', 'POS': 679, 'REF': 'T', 'ALT': 'A'},   ## ok
+                {'variant_name': 'Y262H', 'CHROM': 'CYP51', 'POS': 841, 'REF': 'T', 'ALT': 'C'},  ## maintenant ok
+                {'variant_name': 'R376C', 'CHROM': 'CYP51', 'POS': 1398, 'REF': 'C', 'ALT': 'T'},  ## maintenant ok
+                {'variant_name': 'A379G', 'CHROM': 'CYP51', 'POS': 1408, 'REF': 'C', 'ALT': 'G'},   ## ok
+                {'variant_name': 'I381V', 'CHROM': 'CYP51', 'POS': 1413, 'REF': 'A', 'ALT': 'G'},  ## ok
+                {'variant_name': 'Y459S', 'CHROM': 'CYP51', 'POS': 1648, 'REF': 'A', 'ALT': 'C'},  ## ok
+                {'variant_name': 'Y459', 'CHROM': 'CYP51', 'POS': 1646, 'REF': 'CTAT', 'ALT': 'C'},  ## ok
+                {'variant_name': 'G460', 'CHROM': 'CYP51', 'POS': 1649, 'REF': 'TGGC', 'ALT': 'T'},  ## ok
+                {'variant_name': 'Y461S', 'CHROM': 'CYP51', 'POS': 1654, 'REF': 'A', 'ALT': 'C'},   # ok
+                {'variant_name': 'Y461H', 'CHROM': 'CYP51', 'POS': 1653, 'REF': 'T', 'ALT': 'C'},   ## ok
+                {'variant_name': 'N513K_AAA', 'CHROM': 'CYP51', 'POS': 1811, 'REF': 'C', 'ALT': 'A'},  # ok
+                {'variant_name': 'N513K_AAG', 'CHROM': 'CYP51', 'POS': 1811, 'REF': 'C', 'ALT': 'G'},  # ok
+                {'variant_name': 'S524T', 'CHROM': 'CYP51', 'POS': 1843, 'REF': 'G', 'ALT': 'C'}   # ok
             ],
             'CytB': [
                 {'variant_name': 'G37V', 'CHROM': 'CytB', 'POS': 110, 'REF': 'G', 'ALT': 'T'},
