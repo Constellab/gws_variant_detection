@@ -1,435 +1,207 @@
+
+import sys
 import os
 import pandas as pd
-import subprocess
 import numpy as np
-import re
-import sys
-import pysam
-import shutil
-from multiprocessing import Pool
 
-class VCFWorkflow:
-    def __init__(self, bam_folder, ref_genome, gene_name, gene_positions, minipileup_path, output_folder,
-                 counts_matrices_folder, frequencies_matrices_folder, known_variants_file, threads):
-        self.bam_folder = bam_folder
-        self.ref_genome = ref_genome
-        self.gene_name = gene_name
-        self.gene_positions = gene_positions  # List of positions of interest
-        self.minipileup_path = minipileup_path
-        self.output_folder = output_folder
-        self.counts_matrices_folder = counts_matrices_folder
-        self.frequencies_matrices_folder = frequencies_matrices_folder
-        self.known_variants_file = known_variants_file
-        self.threads = threads  # Number of threads for parallel processing
-        self.create_folder(self.output_folder)
-        self.create_folder(self.counts_matrices_folder)
-        self.create_folder(self.frequencies_matrices_folder)
-        self.per_read_bam_folder = os.path.join(self.output_folder, "per_read_bams")
-        self.per_read_vcf_folder = os.path.join(self.output_folder, "per_read_vcfs")
-        self.normalized_vcf_folder = os.path.join(self.output_folder, "normalized_vcfs")
-        self.variant_names = self.get_variant_names()
-        self.barcode_list = self.get_barcode_list()
-        self.total_reads_per_barcode = {}  # Store total reads per barcode
+
+class CooccurrenceMatrixGenerator:
+    def __init__(
+        self,
+        input_csv,
+        output_counts_folder,
+        output_freq_folder,
+        output_subset_folder
+    ):
+
+        self.input_csv = input_csv
+        self.output_counts_folder = output_counts_folder
+        self.output_freq_folder = output_freq_folder
+        self.output_subset_folder = output_subset_folder
+
+        self.create_folder(self.output_counts_folder)
+        self.create_folder(self.output_freq_folder)
+        self.create_folder(self.output_subset_folder)
 
     def create_folder(self, folder_path):
-        """Ensure a folder exists; if not, create it."""
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
-            print(f"Created folder: {folder_path}")
 
-    def get_variant_names(self):
-        """Get mapping from (CHROM, POS, REF, ALT) to variant names for the selected gene."""
-        # Only include variants for the selected gene
-        all_variant_names = {
-            ('CYP51', 407, 'A', 'T'): 'Y136F',
-            ('CytB', 416, 'G', 'C'): 'G143A',
-            ('SdhB', 1007, 'C', 'T'): 'H242Y',
-            ('SdhB', 1008, 'A', 'G'): 'H242R',
-            ('SdhB', 1008, 'A', 'T'): 'H242L',
-            ('SdhB', 1013, 'A', 'G'): 'I244V',
-            ('SdhC', 249, 'G', 'A'): 'G25R',
-            ('SdhC', 543, 'C', 'T'): 'A83V',
-            ('SdhC', 588, 'C', 'T'): 'T98I',
-            ('SdhC', 677, 'G', 'A'): 'A128T',
-            ('SdhC', 758, 'G', 'A'): 'D155N',
-            ('SdhC', 800, 'G', 'A'): 'G169S',
-            ('SdhC', 801, 'G', 'A'): 'G169D',
-            ('SdhD', 185, 'A', 'C'): 'K37Q',
-            ('SdhD', 287, 'A', 'T'): 'I71F',
-            ('SdhD', 281, 'A', 'G'): 'N69D',
-            ('SdhD', 588, 'A', 'T'): 'I136F'
-        }
+    def load_read_variants(self):
 
-        variant_names = {k: v for k, v in all_variant_names.items() if k[0] == self.gene_name}
-        return variant_names
+        if not os.path.exists(self.input_csv):
+            raise FileNotFoundError(f"Le fichier {self.input_csv} n'existe pas.")
 
-    def get_barcode_list(self):
-        """Get list of barcodes from BAM filenames."""
-        barcodes = set()
-        for bam_file in os.listdir(self.bam_folder):
-            if bam_file.endswith('.bam'):
-                barcode = bam_file.split('-')[0]  # Assuming barcode is before '-'
-                barcodes.add(barcode)
-        return list(barcodes)
+        df = pd.read_csv(self.input_csv)
+        if 'Variants' not in df.columns or 'Read' not in df.columns:
+            raise ValueError("Le fichier CSV doit contenir 'Read' et 'Variants'.")
+        return df
 
-    def parse_known_variants_file(self):
-        """Parse the known_variants_file to get variant counts per barcode."""
-        known_variants_df = pd.read_csv(self.known_variants_file, sep='\t')
-        # Expected columns: 'variant_name', 'barcodeXX_VARIANT_COUNT', 'barcodeXX_VARIANT_FREQ', etc.
-        variant_counts_per_barcode = {}
-        # Extract all barcode columns ending with '_VARIANT_COUNT'
-        barcode_count_columns = [col for col in known_variants_df.columns if col.endswith('_VARIANT_COUNT')]
-        for barcode_col in barcode_count_columns:
-            barcode = barcode_col.replace('_VARIANT_COUNT', '')
-            if barcode in self.barcode_list:
-                counts = known_variants_df[['variant_name', barcode_col]].set_index('variant_name')[barcode_col].to_dict()
-                variant_counts_per_barcode[barcode] = counts
-            else:
-                variant_counts_per_barcode[barcode] = {}
-        return variant_counts_per_barcode
+    def extract_variants(self, variants_str):
 
-    def parse_known_variants_file_frequencies(self):
-        """Parse the known_variants_file to get variant frequencies per barcode."""
-        known_variants_df = pd.read_csv(self.known_variants_file, sep='\t')
-        variant_freqs_per_barcode = {}
-        barcode_freq_columns = [col for col in known_variants_df.columns if col.endswith('_VARIANT_FREQ')]
-        for barcode_col in barcode_freq_columns:
-            barcode = barcode_col.replace('_VARIANT_FREQ', '')
-            if barcode in self.barcode_list:
-                freqs = known_variants_df[['variant_name', barcode_col]].set_index('variant_name')[barcode_col].to_dict()
-                # Remove '%' if present and convert to float
-                freqs = {k: float(str(v).replace('%', '').replace(',', '.')) for k, v in freqs.items()}
-                variant_freqs_per_barcode[barcode] = freqs
-            else:
-                variant_freqs_per_barcode[barcode] = {}
-        return variant_freqs_per_barcode
-
-    def split_bam_by_read(self):
-        """Split each BAM file into multiple BAM files, each containing a single read."""
-        self.create_folder(self.per_read_bam_folder)
-        bam_files = [f for f in os.listdir(self.bam_folder) if f.endswith('.bam')]
-        bam_paths = [os.path.join(self.bam_folder, bam_file) for bam_file in bam_files]
-        with Pool(processes=self.threads) as pool:
-            pool.map(self.process_bam_file, bam_paths)
-
-    def process_bam_file(self, bam_path):
-        """Process a single BAM file to split it into per-read BAM files."""
-        bam_file = os.path.basename(bam_path)
-        bam_basename = os.path.splitext(bam_file)[0]
-        barcode = bam_basename.split('-')[0]
-        barcode_folder = os.path.join(self.per_read_bam_folder, barcode)
-        self.create_folder(barcode_folder)
-        print(f"Processing BAM file: {bam_file}")
-
-        bamfile = pysam.AlignmentFile(bam_path, "rb")
-        read_counter = 0
-
-        for read in bamfile.fetch(until_eof=True):
-            read_counter += 1
-            per_read_bam_path = os.path.join(barcode_folder, f"{bam_basename}_read{read_counter}.bam")
-            with pysam.AlignmentFile(per_read_bam_path, "wb", template=bamfile) as out_bam:
-                out_bam.write(read)
-            # Index the per-read BAM file
-            pysam.index(per_read_bam_path)
-
-        bamfile.close()
-        print(f"Split {bam_file} into {read_counter} per-read BAM files.")
-
-    def call_variants_per_read(self):
-        """Call variants on each per-read BAM file using Minipileup."""
-        self.create_folder(self.per_read_vcf_folder)
-        bam_folders = [os.path.join(self.per_read_bam_folder, barcode) for barcode in self.barcode_list]
-        with Pool(processes=self.threads) as pool:
-            pool.map(self.process_bam_folder, bam_folders)
-        print("Variant calling on per-read BAM files completed.")
-
-    def process_bam_folder(self, barcode_bam_folder):
-        """Process all per-read BAM files in a barcode folder."""
-        barcode = os.path.basename(barcode_bam_folder)
-        barcode_vcf_folder = os.path.join(self.per_read_vcf_folder, barcode)
-        self.create_folder(barcode_vcf_folder)
-        bam_files = [f for f in os.listdir(barcode_bam_folder) if f.endswith('.bam')]
-
-        for bam_file in bam_files:
-            bam_path = os.path.join(barcode_bam_folder, bam_file)
-            vcf_file = bam_file.replace('.bam', '.vcf')
-            vcf_path = os.path.join(barcode_vcf_folder, vcf_file)
-
-            # Run Minipileup for each per-read BAM file
-            minipileup_cmd = f'{self.minipileup_path} -vc -f {self.ref_genome} {bam_path} > {vcf_path}'
-            try:
-                subprocess.run(minipileup_cmd, shell=True, check=True)
-                print(f"Called variants for {bam_file}, output saved to {vcf_file}")
-            except subprocess.CalledProcessError as e:
-                print(f"Minipileup failed for {bam_file}: {e}")
-
-    def normalize_vcfs(self):
-        """Normalize the per-read VCF files using bcftools norm."""
-        self.create_folder(self.normalized_vcf_folder)
-        vcf_folders = [os.path.join(self.per_read_vcf_folder, barcode) for barcode in self.barcode_list]
-        with Pool(processes=self.threads) as pool:
-            pool.map(self.process_vcf_folder, vcf_folders)
-        print("Normalization of per-read VCF files completed.")
-
-    def process_vcf_folder(self, barcode_vcf_folder):
-        """Normalize all VCF files in a barcode folder."""
-        barcode = os.path.basename(barcode_vcf_folder)
-        barcode_norm_vcf_folder = os.path.join(self.normalized_vcf_folder, barcode)
-        self.create_folder(barcode_norm_vcf_folder)
-        vcf_files = [f for f in os.listdir(barcode_vcf_folder) if f.endswith('.vcf')]
-
-        for vcf_file in vcf_files:
-            input_vcf_path = os.path.join(barcode_vcf_folder, vcf_file)
-            intermediate_vcf = os.path.join(barcode_norm_vcf_folder, f"{os.path.splitext(vcf_file)[0]}_norm_step1.vcf")
-            final_vcf = os.path.join(barcode_norm_vcf_folder, f"{os.path.splitext(vcf_file)[0]}_norm_step2.vcf")
-
-            # Run bcftools norm commands
-            try:
-                subprocess.run(['bcftools', 'norm', '-m-', '-o', intermediate_vcf, input_vcf_path], check=True)
-                subprocess.run(['bcftools', 'norm', '-f', self.ref_genome, '-cw', '-o', final_vcf, intermediate_vcf], check=True)
-                print(f"Normalized VCF file: {final_vcf}")
-            except subprocess.CalledProcessError as e:
-                print(f"bcftools norm failed for {vcf_file} in barcode {barcode}: {e}")
-
-    def extract_variants_from_vcf(self, vcf_path, variant_names):
-        """Extract variants from a VCF file and return the variant names present."""
-        variants_present = []
         try:
-            with open(vcf_path, 'r') as vcf_file:
-                for line in vcf_file:
-                    if line.startswith('#'):
-                        continue
-                    fields = line.strip().split('\t')
-                    chrom = fields[0]
-                    if chrom != self.gene_name:
-                        continue  # Only process the selected gene
-                    pos = int(fields[1])
-                    ref = fields[3]
-                    alt = fields[4]
-                    # No need to split alt, since VCF is normalized
-                    key = (chrom, pos, ref, alt)
-                    if key in variant_names:
-                        variants_present.append(variant_names[key])
+            variants_str = variants_str.strip('[]')
+            return [
+                variant.strip().replace("'", "")
+                for variant in variants_str.split(',')
+                if variant.strip()
+            ]
         except Exception as e:
-            print(f"Error reading VCF file {vcf_path}: {e}")
-        return variants_present
+            print(f"Erreur lors de l'analyse de la chaîne '{variants_str}': {e}")
+            return []
 
-    def collect_variants_and_build_matrix(self):
-        """Collect variants from normalized VCF files and build co-occurrence matrices per barcode."""
-        variant_counts_per_barcode = self.parse_known_variants_file()
-        variant_freqs_per_barcode = self.parse_known_variants_file_frequencies()
-        variants_list = list(set(self.variant_names.values()))
-        variant_indices = {v: i for i, v in enumerate(variants_list)}
+    def extract_barcode(self, read_id):
 
-        for barcode in self.barcode_list:
-            barcode_norm_vcf_folder = os.path.join(self.normalized_vcf_folder, barcode)
-            vcf_files = [f for f in os.listdir(barcode_norm_vcf_folder) if f.endswith('_norm_step2.vcf')]
-            cooccurrence_matrix = np.zeros((len(variants_list), len(variants_list)), dtype=int)
-            total_reads_processed = 0
+        try:
+            return read_id.split('-')[0]
+        except Exception as e:
+            print(f"Erreur d'extraction du barcode : {e}")
+            return "Unknown"
 
-            # Set diagonal entries from known_variants_file (counts)
-            variant_counts = variant_counts_per_barcode.get(barcode, {})
-            for variant_name, count in variant_counts.items():
-                if variant_name in variant_indices:
-                    idx = variant_indices[variant_name]
-                    cooccurrence_matrix[idx, idx] = count
 
-            # Process per-read VCF files to fill off-diagonal entries
-            for vcf_file in vcf_files:
-                vcf_path = os.path.join(barcode_norm_vcf_folder, vcf_file)
-                read_variants = self.extract_variants_from_vcf(vcf_path, self.variant_names)
-                total_reads_processed += 1
+    # (1) GÉNÉRER LES MATRICES 2D (IGNORE 0 OU >=3 VARIANTS)
 
-                if len(read_variants) > 1:
-                    # Update co-occurrence counts
-                    for i in range(len(read_variants)):
-                        vi = variant_indices[read_variants[i]]
-                        for j in range(i + 1, len(read_variants)):
-                            vj = variant_indices[read_variants[j]]
-                            cooccurrence_matrix[vi, vj] += 1
-                            cooccurrence_matrix[vj, vi] += 1  # Symmetric
+    def generate_2d_matrices(self, df):
 
-            # Store total reads per barcode
-            self.total_reads_per_barcode[barcode] = total_reads_processed
+        df['Barcode'] = df['Read'].apply(self.extract_barcode)
+        grouped = df.groupby('Barcode')
 
-            # Save counts matrix
-            cooccurrence_df = pd.DataFrame(cooccurrence_matrix, index=variants_list, columns=variants_list)
-            counts_matrix_path = os.path.join(self.counts_matrices_folder, f"{barcode}_cooccurrence_matrix_counts.csv")
-            cooccurrence_df.to_csv(counts_matrix_path)
+        for barcode, group in grouped:
 
-            # Build frequency matrix
-            frequencies_matrix = np.zeros_like(cooccurrence_matrix, dtype=float)
+            # Rassemble toutes les variantes distinctes
+            all_variants = set()
+            for variants_str in group['Variants']:
+                var_list = self.extract_variants(variants_str)
+                all_variants.update(var_list)
 
-            # Total reads per barcode
-            total_reads_per_barcode = total_reads_processed
-
-            # Set diagonal entries from known_variants_file (frequencies)
-            variant_freqs = variant_freqs_per_barcode.get(barcode, {})
-            for variant_name, freq in variant_freqs.items():
-                if variant_name in variant_indices:
-                    idx = variant_indices[variant_name]
-                    frequencies_matrix[idx, idx] = freq
-
-            # Calculate off-diagonal frequencies
-            for i in range(len(variants_list)):
-                for j in range(len(variants_list)):
-                    if i != j and total_reads_per_barcode > 0:
-                        frequencies_matrix[i, j] = (cooccurrence_matrix[i, j] / total_reads_per_barcode) * 100
-
-            # Round frequencies to two decimal places
-            frequencies_matrix = np.round(frequencies_matrix, 2)
-
-            # Save frequencies matrix
-            frequencies_df = pd.DataFrame(frequencies_matrix, index=variants_list, columns=variants_list)
-            frequencies_matrix_path = os.path.join(self.frequencies_matrices_folder, f"{barcode}_cooccurrence_matrix_frequencies.csv")
-            frequencies_df.to_csv(frequencies_matrix_path)
-
-            print(f"Counts and frequencies matrices saved for barcode {barcode}")
-
-    def calculate_wildtype_frequencies_from_vcfs(self):
-        """Calculate wild-type frequencies directly from VCF files based on total_reads_processed and save results to a file."""
-        output_file = os.path.join(self.counts_matrices_folder, "wildtype_frequencies.csv")
-        results = []
-
-        for barcode in self.barcode_list:
-            barcode_norm_vcf_folder = os.path.join(self.normalized_vcf_folder, barcode)
-            if not os.path.exists(barcode_norm_vcf_folder):
-                print(f"Normalized VCF folder not found for barcode {barcode}, skipping.")
+            if not all_variants:
+                print(f"Aucune variante pour {barcode}. On ignore.")
                 continue
 
-            vcf_files = [f for f in os.listdir(barcode_norm_vcf_folder) if f.endswith('_norm_step2.vcf')]
-            wildtype_count = 0
+            all_variants = sorted(all_variants)
+            variant_indices = {v: i for i, v in enumerate(all_variants)}
+            count_matrix = np.zeros((len(all_variants), len(all_variants)), dtype=int)
+            total_reads = len(group)
 
-            for vcf_file in vcf_files:
-                vcf_path = os.path.join(barcode_norm_vcf_folder, vcf_file)
-                try:
-                    with open(vcf_path, 'r') as vcf:
-                        has_variant = False
-                        for line in vcf:
-                            if line.startswith('#'):
-                                continue
-                            fields = line.strip().split('\t')
-                            chrom = fields[0]
-                            if chrom != self.gene_name:
-                                continue  # Only process the selected gene
-                            pos = int(fields[1])
-                            ref = fields[3]
-                            alt = fields[4]
-                            key = (chrom, pos, ref, alt)
-                            if key in self.variant_names:
-                                has_variant = True
-                                break  # Variant found, not wildtype
-                        if not has_variant:
-                            wildtype_count += 1
-                except Exception as e:
-                    print(f"Error reading VCF file {vcf_path}: {e}")
+            # Parcours des reads
+            for variants_str in group['Variants']:
+                var_list = self.extract_variants(variants_str)
 
-            # Retrieve the total number of reads processed for this barcode
-            total_reads = self.total_reads_per_barcode.get(barcode, 0)
+                if len(var_list) == 1:
+                    # Diagonale
+                    v = var_list[0]
+                    if v in variant_indices:
+                        idx = variant_indices[v]
+                        count_matrix[idx, idx] += 1
+                elif len(var_list) == 2:
+                    # Off-diagonal
+                    v1, v2 = var_list
+                    if v1 in variant_indices and v2 in variant_indices:
+                        i1 = variant_indices[v1]
+                        i2 = variant_indices[v2]
+                        count_matrix[i1, i2] += 1
+                        count_matrix[i2, i1] += 1
+                else:
+                    # 0 ou >=3 => on ignore
+                    continue
 
-            # Calculate wildtype frequency
-            frequency_wildtype = round((wildtype_count / total_reads) * 100, 2) if total_reads > 0 else 0.0
+            # Matrice de comptes
+            count_df = pd.DataFrame(count_matrix, index=all_variants, columns=all_variants)
+            counts_path = os.path.join(self.output_counts_folder, f"{barcode}_cooccurrence_matrix_counts.csv")
+            count_df.to_csv(counts_path)
 
-            # Append results for this barcode
-            results.append([barcode, wildtype_count, frequency_wildtype])
+            # Matrice de fréquences
+            freq_matrix = (count_matrix / total_reads) * 100
+            freq_matrix = np.round(freq_matrix, 2)
+            freq_df = pd.DataFrame(freq_matrix, index=all_variants, columns=all_variants)
+            freqs_path = os.path.join(self.output_freq_folder, f"{barcode}_cooccurrence_matrix_frequencies.csv")
+            freq_df.to_csv(freqs_path)
 
-            # Debugging output
-            print(f"Barcode: {barcode}")
-            print(f"Total reads processed: {total_reads}")
-            print(f"Wildtype reads: {wildtype_count}")
-            print(f"Wildtype Frequency: {frequency_wildtype}%\n")
+    #
+    # (2) TABLE DES SUBSETS (y compris 0 variants => 'wildtype')
+    #
+    def generate_subset_tables(self, df):
+        """
+        Pour chaque barcode, on produit un CSV listant:
+         - Subset_of_variants
+         - Count
+         - Frequency(%)
+        Les reads avec 0 variants => 'wildtype'.
+        On retire tous guillemets restants dans les noms de variantes.
+        """
+        df['Barcode'] = df['Read'].apply(self.extract_barcode)
 
-        # Create a DataFrame for the results
-        results_df = pd.DataFrame(results, columns=['Sample', 'Count', 'Frequency'])
+        counts_dict = {}  # (barcode, subset_tuple) -> count
+        total_reads_per_barcode = {}
 
-        # Function to extract the numeric part of the barcode for sorting
-        def extract_barcode_number(sample_name):
-            match = re.search(r'barcode(\d+)', sample_name)
-            if match:
-                return int(match.group(1))  # Extract the numeric part of the barcode
-            return float('inf')  # If no barcode number found, place it at the end
+        for _, row in df.iterrows():
+            barcode = row['Barcode']
+            var_list = self.extract_variants(row['Variants'])
+            # Remove leftover quotes in variant names
+            var_list = [v.replace('"', '').replace("'", "") for v in var_list if v.strip()]
 
-        # Sort the DataFrame by barcode number
-        results_df['Barcode_Num'] = results_df['Sample'].apply(extract_barcode_number)
-        results_df = results_df.sort_values('Barcode_Num').drop('Barcode_Num', axis=1)
-
-        # Write the results to a CSV file
-        results_df.to_csv(output_file, index=False)
-
-        print(f"Wild-type frequencies saved to {output_file}")
-
-    def clean_up(self):
-        """Delete intermediate directories after final output is generated."""
-        dirs_to_remove = [self.per_read_bam_folder, self.per_read_vcf_folder, self.normalized_vcf_folder]
-        for dir_path in dirs_to_remove:
-            if os.path.exists(dir_path):
-                shutil.rmtree(dir_path)
-                print(f"Deleted directory: {dir_path}")
+            if len(var_list) == 0:
+                # => wildtype
+                subset_key = ("wildtype",)
             else:
-                print(f"Directory not found, skipping deletion: {dir_path}")
+                subset_key = tuple(sorted(var_list))
 
-# Define gene positions
-gene_positions = {
-    'CYP51': [
-        {'variant_name': 'Y136F', 'CHROM': 'CYP51', 'POS': 407, 'REF': 'A', 'ALT': 'T'}
-    ],
-    'CytB': [
-        {'variant_name': 'G143A', 'CHROM': 'CytB', 'POS': 416, 'REF': 'G', 'ALT': 'C'}
-    ],
-    'SdhB': [
-        {'variant_name': 'H242Y', 'CHROM': 'SdhB', 'POS': 1007, 'REF': 'C', 'ALT': 'T'},
-        {'variant_name': 'H242R', 'CHROM': 'SdhB', 'POS': 1008, 'REF': 'A', 'ALT': 'G'},
-        {'variant_name': 'H242L', 'CHROM': 'SdhB', 'POS': 1008, 'REF': 'A', 'ALT': 'T'},
-        {'variant_name': 'I244V', 'CHROM': 'SdhB', 'POS': 1013, 'REF': 'A', 'ALT': 'G'}
-    ],
-    'SdhC': [
-        {'variant_name': 'G25R', 'CHROM': 'SdhC', 'POS': 249, 'REF': 'G', 'ALT': 'A'},
-        {'variant_name': 'A83V', 'CHROM': 'SdhC', 'POS': 543, 'REF': 'C', 'ALT': 'T'},
-        {'variant_name': 'T98I', 'CHROM': 'SdhC', 'POS': 588, 'REF': 'C', 'ALT': 'T'},
-        {'variant_name': 'A128T', 'CHROM': 'SdhC', 'POS': 677, 'REF': 'G', 'ALT': 'A'},
-        {'variant_name': 'D155N', 'CHROM': 'SdhC', 'POS': 758, 'REF': 'G', 'ALT': 'A'},
-        {'variant_name': 'G169S', 'CHROM': 'SdhC', 'POS': 800, 'REF': 'G', 'ALT': 'A'},
-        {'variant_name': 'G169D', 'CHROM': 'SdhC', 'POS': 801, 'REF': 'G', 'ALT': 'A'}
-    ],
-    'SdhD': [
-        {'variant_name': 'K37Q', 'CHROM': 'SdhD', 'POS': 185, 'REF': 'A', 'ALT': 'C'},
-        {'variant_name': 'I71F', 'CHROM': 'SdhD', 'POS': 287, 'REF': 'A', 'ALT': 'T'},
-        {'variant_name': 'N69D', 'CHROM': 'SdhD', 'POS': 281, 'REF': 'A', 'ALT': 'G'},
-        {'variant_name': 'I136F', 'CHROM': 'SdhD', 'POS': 588, 'REF': 'A', 'ALT': 'T'}
-    ]
-}
+            if barcode not in total_reads_per_barcode:
+                total_reads_per_barcode[barcode] = 0
+            total_reads_per_barcode[barcode] += 1
 
-# Set your paths and parameters here
-bam_folder = sys.argv[1]
-ref_genome = sys.argv[2]
-gene_name = sys.argv[3]
-minipileup_path = sys.argv[4]
-output_folder = sys.argv[5]
-counts_matrices_folder = sys.argv[6]
-frequencies_matrices_folder = sys.argv[7]
-known_variants_file = sys.argv[8]
-threads = 30  # Set the number of threads for parallel processing
+            dict_key = (barcode, subset_key)
+            counts_dict[dict_key] = counts_dict.get(dict_key, 0) + 1
 
-# Instantiate and run the workflow
-workflow = VCFWorkflow(
-    bam_folder=bam_folder,
-    ref_genome=ref_genome,
-    gene_name=gene_name,
-    gene_positions=gene_positions.get(gene_name, []),
-    minipileup_path=minipileup_path,
-    output_folder=output_folder,
-    counts_matrices_folder=counts_matrices_folder,
-    frequencies_matrices_folder=frequencies_matrices_folder,
-    known_variants_file=known_variants_file,
-    threads=threads
+        # Un CSV par barcode
+        barcodes = sorted(total_reads_per_barcode.keys())
+        for bc in barcodes:
+            total_bc = total_reads_per_barcode[bc]
+            bc_subsets = []
+            bc_counts = []
+            bc_freqs = []
+
+            for (bcode, subset_tuple), ccount in counts_dict.items():
+                if bcode == bc:
+                    # Transform subset_tuple en string
+                    if len(subset_tuple) == 1 and subset_tuple[0] == "wildtype":
+                        subset_str = "wildtype"
+                    else:
+                        # Join with comma
+                        subset_str = ",".join(
+                            x.replace('"', '').replace("'", "")
+                            for x in subset_tuple
+                        )
+                    bc_subsets.append(subset_str)
+                    bc_counts.append(ccount)
+                    freq = round((ccount / total_bc) * 100, 2)
+                    bc_freqs.append(freq)
+
+            out_df = pd.DataFrame({
+                "Subset_of_variants": bc_subsets,
+                "Count": bc_counts,
+                "Frequency(%)": bc_freqs
+            })
+            # On trie par Count desc
+            out_df = out_df.sort_values("Count", ascending=False)
+
+            out_path = os.path.join(self.output_subset_folder, f"{bc}_subset_cooccurrence.csv")
+            out_df.to_csv(out_path, index=False)
+
+    def run(self):
+        df = self.load_read_variants()
+        self.generate_2d_matrices(df)
+        self.generate_subset_tables(df)
+
+input_csv = sys.argv[1]
+output_counts_folder = sys.argv[2]
+output_freq_folder = sys.argv[3]
+output_subset_folder = sys.argv[4]
+
+generator = CooccurrenceMatrixGenerator(
+    input_csv=input_csv,
+    output_counts_folder=output_counts_folder,
+    output_freq_folder=output_freq_folder,
+    output_subset_folder=output_subset_folder
 )
-
-# Run the workflow methods
-workflow.split_bam_by_read()
-workflow.call_variants_per_read()
-workflow.normalize_vcfs()
-workflow.collect_variants_and_build_matrix()
-workflow.calculate_wildtype_frequencies_from_vcfs()
-
-# Delete intermediate directories after final output is generated
-workflow.clean_up()
+generator.run()

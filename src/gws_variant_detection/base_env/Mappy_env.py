@@ -15,4 +15,4 @@ class MappyShellProxyHelper():
 
     @classmethod
     def create_proxy(cls, message_dispatcher: MessageDispatcher = None):
-        return PipShellProxy(cls.ENV_DIR_NAME, cls.ENV_FILE_PATH, message_dispatcher=message_dispatcher)
+        return PipShellProxy(cls.ENV_FILE_PATH, cls.ENV_DIR_NAME, message_dispatcher=message_dispatcher)

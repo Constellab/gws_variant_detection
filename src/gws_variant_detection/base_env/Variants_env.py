@@ -15,5 +15,5 @@ class VariantsShellProxyHelper():
 
     @classmethod
     def create_proxy(cls, message_dispatcher: MessageDispatcher = None, working_dir: str = None):
-        return CondaShellProxy(cls.ENV_DIR_NAME, cls.ENV_FILE_PATH, working_dir=working_dir,
+        return CondaShellProxy(cls.ENV_FILE_PATH, cls.ENV_DIR_NAME, working_dir=working_dir,
                                message_dispatcher=message_dispatcher)

@@ -10,7 +10,7 @@ from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder, ShellP
                       TaskInputs, TaskOutputs, task_decorator, StrParam, Table , TableImporter , ResourceSet, TaskFileDownloader)
 
 
-from ..base_env.Haplotypes_env import HaplotypesShellProxyHelper
+from ..base_env.Haplotype_env import HaplotypeShellProxyHelper
 
 
 @task_decorator("VariantsHaplotypesSeptoria", human_name="VariantsHaplotypesSeptoria",
@@ -21,15 +21,9 @@ class VariantsHaplotypesSeptoria(Task):
     """
 
     input_specs = InputSpecs({
-        'bam_folder':
+        'read_variants_table':
         InputSpec(
-            Folder, human_name="Folder containing the different alignment files"),
-        'known_variants_file':
-        InputSpec(
-            Table, human_name="Table containing the result of filtered variant calling"),
-        'ref_genome':
-        InputSpec(
-            File, human_name="File containing gene reference sequence")
+            Table, human_name="A table containing the known variants detected per read and per barcode"),
     })
 
     output_specs = OutputSpecs({
@@ -42,23 +36,25 @@ class VariantsHaplotypesSeptoria(Task):
         OutputSpec(
             Folder, human_name="co-occurence matrix in term of frequencies",
             short_description="The frequency of reads of a target gene with multiple variants (mutation1 + mutations 2) in term of FREQUENCY"),
-        'resource_set':
+        'co-occurence_table_folder':
+        OutputSpec(
+            Folder, human_name="co-occurence table variants",
+            short_description="The frequency and count of variants across a barcode"),
+        'resource_set_COUNT':
         OutputSpec(
             ResourceSet, human_name="Count Co-occurence matrix",
-            short_description="Multiple Variant Detection Tables in term of COUNTS"),
+            short_description="Multiple Variant Detection matrices in term of COUNTS"),
         'resource_set_FREQ':
         OutputSpec(
             ResourceSet, human_name="FREQ Co-occurence matrix",
-            short_description="Multiple Variant Detection Tables in term of FREQUENCIES"),
-
-        'wildtype_frequencies':OutputSpec(Table, human_name="wildtype_frequencies", short_description="Wildetype frequency per barcode"),
-
+            short_description="Multiple Variant Detection matrices in term of FREQUENCIES"),
+        'resource_set_cooccurence_variant':
+        OutputSpec(
+            ResourceSet, human_name="Co-occurence variants table",
+            short_description="Multiple Variant Detection Tables in term of FREQUENCIES and COUNTS"),
     })
 
     config_specs: ConfigSpecs = {
-        "gene_name":
-        StrParam(allowed_values=["CYP51","CytB","SdhB","SdhC","SdhD"], default_value="CytB",
-                 short_description="Targeted gene")
     }
 
     python_file_path = os.path.join(
@@ -73,39 +69,10 @@ class VariantsHaplotypesSeptoria(Task):
         """ Run the task """
 
         # retrive the input table
-        bam_folder: Folder = inputs['bam_folder']
-        known_variants_table: Table = inputs['known_variants_file']
-        ref_genome: File = inputs['ref_genome']
-        gene_name = params["gene_name"]
-
-        # Setup the minipileup executable
-        downloader = TaskFileDownloader(
-            brick_name=VariantsHaplotypesSeptoria.get_brick_name(),
-            message_dispatcher=self.message_dispatcher)
-        minipileup_folder = downloader.download_file_if_missing(
-            url='https://storage.sbg.cloud.ovh.net/v1/AUTH_a0286631d7b24afba3f3cdebed2992aa/public/gws_variant_detection/minipileup-1.0.zip',
-            filename='minipileup', decompress_file=True)
-
-        minipileup_folder_v1 = os.path.join(os.path.join(minipileup_folder, 'minipileup-1.0'))
-
-        #  path including the directory if exists
-        minipileup_file_path = os.path.join(minipileup_folder_v1, 'minipileup')
-
-        if not os.path.isfile(minipileup_file_path):
-            # If the executable does not exist, navigate to the directory and run the make command
-            shell_proxy = HaplotypesShellProxyHelper.create_proxy(self.message_dispatcher, minipileup_folder_v1)
-
-            # Execute the make command
-            make_command = "make"
-            result = shell_proxy.run(make_command, shell_mode=True)
-            if result:
-                raise Exception("Error during build of minipileup, please check logs")
+        read_variants_table: Table = inputs['read_variants_table']
 
         # Execute the command
-        shell_proxy = HaplotypesShellProxyHelper.create_proxy(self.message_dispatcher)
-        output_folder_path = os.path.join(shell_proxy.working_dir, 'output_folder')
-        os.makedirs(output_folder_path)
-
+        shell_proxy = HaplotypeShellProxyHelper.create_proxy(self.message_dispatcher)
 
         counts_matrices_folder_path = os.path.join(shell_proxy.working_dir, 'counts_matrices_folder')
         os.makedirs(counts_matrices_folder_path)
@@ -113,17 +80,19 @@ class VariantsHaplotypesSeptoria(Task):
         frequencies_matrices_folder_path = os.path.join(shell_proxy.working_dir, 'frequencies_matrices_folder')
         os.makedirs(frequencies_matrices_folder_path)
 
+        co_occurence_variants_folder_path = os.path.join(shell_proxy.working_dir, 'co_occurence_variants_folder')
+        os.makedirs(co_occurence_variants_folder_path)
 
-        file: File = TableExporter.call(known_variants_table, {
-            'file_format': 'tsv',
-            'delimiter' : 'tab',
+        read_variants_file: File = TableExporter.call(read_variants_table, {
+            'file_format': 'csv',
+            'delimiter' : ',',
             'write_header': True,
             'write_index' : False
         })
 
 
         # call python file
-        cmd = f"python3 {self.python_file_path} {bam_folder.path} {ref_genome.path } {str(gene_name)} {minipileup_file_path} {output_folder_path} {counts_matrices_folder_path} {frequencies_matrices_folder_path} {file.path}"
+        cmd = f"python3 {self.python_file_path} {read_variants_file.path} {counts_matrices_folder_path} {frequencies_matrices_folder_path} {co_occurence_variants_folder_path}"
         result = shell_proxy.run(cmd, shell_mode=True)
 
         if result != 0:
@@ -133,15 +102,16 @@ class VariantsHaplotypesSeptoria(Task):
         # display outputs :
         counts_matrices_folder = Folder(counts_matrices_folder_path)
         frequencies_matrices_folder = Folder(frequencies_matrices_folder_path)
+        co_occurence_variants_folder = Folder(co_occurence_variants_folder_path)
 
         ## create a ressource_set
-        resource_set = ResourceSet()
+        resource_set_COUNT = ResourceSet()
         for filename in os.listdir(counts_matrices_folder_path):
             file_path = os.path.join(counts_matrices_folder_path, filename)
             if os.path.isfile(file_path) and filename.endswith('.csv'):
                 # Use TableImporter.call to read CSV files and add them to the resource set
                 table = TableImporter.call(File(file_path))
-                resource_set.add_resource(table, filename)
+                resource_set_COUNT.add_resource(table, filename)
 
         ## create a ressource_set_freq
         resource_set_FREQ = ResourceSet()
@@ -152,18 +122,22 @@ class VariantsHaplotypesSeptoria(Task):
                 table = TableImporter.call(File(file_path))
                 resource_set_FREQ.add_resource(table, filename)
 
-
-        ## Wildtype frequency per barcode :
-        wildtype_frequencies_path = os.path.join(counts_matrices_folder_path, 'wildtype_frequencies.csv')
-        wildtype_frequencies_table = TableImporter.call(File(wildtype_frequencies_path), {'delimiter': ',', 'header': 0, 'file_format': 'csv'})
+        resource_set_cooccurence_variant = ResourceSet()
+        for filename in os.listdir(co_occurence_variants_folder_path):
+            file_path = os.path.join(co_occurence_variants_folder_path, filename)
+            if os.path.isfile(file_path) and filename.endswith('.csv'):
+                # Use TableImporter.call to read CSV files and add them to the resource set
+                table = TableImporter.call(File(file_path))
+                resource_set_cooccurence_variant.add_resource(table, filename)
 
         # Return the outputs
         return {
-            'counts_matrices_folder': counts_matrices_folder,
+            'counts_matrices_folder':counts_matrices_folder,
             'frequencies_matrices_folder':frequencies_matrices_folder,
-            'resource_set':resource_set,
+            'co-occurence_table_folder':co_occurence_variants_folder,
+            'resource_set_COUNT':resource_set_COUNT,
             'resource_set_FREQ':resource_set_FREQ,
-            'wildtype_frequencies':wildtype_frequencies_table
+            'resource_set_cooccurence_variant':resource_set_cooccurence_variant,
         }
 
     def run_after_task(self):
