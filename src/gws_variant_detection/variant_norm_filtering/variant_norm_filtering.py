@@ -13,9 +13,9 @@ from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder, ShellP
 from ..base_env.Variants_env import VariantsShellProxyHelper
 
 
-@task_decorator("VariantsFilteringMildiou", human_name="VariantsFilteringMildiou",
+@task_decorator("VariantsFiltering", human_name="VariantsFiltering",
                 short_description="Filtering the different detected variant")
-class VariantsFilteringMildiou(Task):
+class VariantsFiltering(Task):
     """
     This task is designed to normalize and process Variant Call Format (VCF) files obtained from next-generation sequencing experiments.
     It takes input VCF files containing genetic variant data, normalizes them, extracts relevant information, merges the data from multiple files, identifies known variants for specific genes, and separates them into known and unknown variants.
@@ -50,7 +50,7 @@ class VariantsFilteringMildiou(Task):
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),
-        "_variant_norm_filtering_mildiou.py"
+        "_variant_norm_filtering.py"
     )
 
     shell_proxy: ShellProxy = None
@@ -67,7 +67,7 @@ class VariantsFilteringMildiou(Task):
 
         # Setup the minipileup executable
         downloader = TaskFileDownloader(
-            brick_name=VariantsFilteringMildiou.get_brick_name(),
+            brick_name=VariantsFiltering.get_brick_name(),
             message_dispatcher=self.message_dispatcher)
         minipileup_folder = downloader.download_file_if_missing(
             url='https://storage.sbg.cloud.ovh.net/v1/AUTH_a0286631d7b24afba3f3cdebed2992aa/public/gws_variant_detection/minipileup-1.0.zip',
