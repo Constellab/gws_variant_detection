@@ -84,8 +84,7 @@ class VCFWorkflowFiltering:
             ('CYP51', 1408, 'C', 'G'): 'A379G',
             ('CYP51', 1413, 'A', 'G'): 'I381V',
             ('CYP51', 1648, 'A', 'C'): 'Y459S',
-            ('CYP51', 1646, 'CTAT', 'C'): 'Y459',
-            ('CYP51', 1649, 'TGGC','T'): 'G460',
+            ('CYP51', 1645, 'ACTATGG', 'A'): 'ΔY459/G460',
             ('CYP51', 1654, 'A', 'C'): 'Y461S',
             ('CYP51', 1653, 'T', 'C'): 'Y461H',
             ('CYP51', 1811, 'C', 'A'): 'N513K_AAA',
@@ -616,8 +615,7 @@ gene_positions = {
         {'CHROM': 'CYP51', 'POS': 1408, 'REF': 'C', 'ALT': 'G'},   # A379G
         {'CHROM': 'CYP51', 'POS': 1413, 'REF': 'A', 'ALT': 'G'},   # I381V
         {'CHROM': 'CYP51', 'POS': 1648, 'REF': 'A', 'ALT': 'C'},   # Y459S
-        {'CHROM': 'CYP51', 'POS': 1646, 'REF': 'CTAT', 'ALT': 'C'},# Y459
-        {'CHROM': 'CYP51', 'POS': 1649, 'REF': 'TGGC', 'ALT': 'T'},# G460
+        {'CHROM': 'CYP51', 'POS': 1645, 'REF': 'ACTATGG', 'ALT': 'A'},# ΔY459/G460
         {'CHROM': 'CYP51', 'POS': 1654, 'REF': 'A', 'ALT': 'C'},   # Y461S
         {'CHROM': 'CYP51', 'POS': 1653, 'REF': 'T', 'ALT': 'C'},   # Y461H
         {'CHROM': 'CYP51', 'POS': 1811, 'REF': 'C', 'ALT': 'A'},   # N513K_AAA
