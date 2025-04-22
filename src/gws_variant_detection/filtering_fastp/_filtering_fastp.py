@@ -69,7 +69,7 @@ class FastpFiltering:
             final_output_path = os.path.join(self.final_output_folder, fastq_file)
 
             # Step 1: Run Fastp (Quality Filtering)
-            fastp_cmd = f'fastp -i {input_path} -o {fastp_output_path} -A -G --qualified_quality_phred {self.qualified_quality_phred} --thread {self.num_threads}'
+            fastp_cmd = f'gunzip -c {input_path} | chopper -q {self.qualified_quality_phred} --threads {self.num_threads} | gzip > {fastp_output_path}'
             result = subprocess.run(fastp_cmd, shell=True)
             if result.returncode != 0:
                 print(f"Error with fastp on {fastq_file}", file=sys.stderr)
