@@ -7,7 +7,7 @@ import os
 
 from gws_core import (ConfigParams, ConfigSpecs, File, InputSpec, Folder,ShellProxy,
                       InputSpecs, IntParam, OutputSpec, OutputSpecs, Task,
-                      TaskInputs, TaskOutputs, task_decorator, StrParam, Table , TableImporter)
+                      TaskInputs, TaskOutputs, task_decorator, StrParam, Table , TableImporter, StrParam, FloatParam)
 
 
 from ..base_env.Mfs_env import MfsShellProxyHelper
@@ -15,32 +15,29 @@ from ..base_env.Mfs_env import MfsShellProxyHelper
 
 @task_decorator("SeptoriaInsertionsMfs1", human_name="SeptoriaInsertionsMfs1",
                 short_description="Determination of insertion size of the MFS1 gene in Septoria.")
+
 class SeptoriaInsertionsMfs1(Task):
     """
-    This script classifies reads from BAM files based on their insertion sizes relative to a reference genome and generates categorized output BAM files and summary statistics. It calculates insertion sizes, classifies reads into defined types, and outputs the results in CSV and BAM formats
+    This script classifies reads from filtered fastq.gz files based on their insertion sizes relative to a reference genome and generates summary statistics table. It calculates insertion sizes, classifies reads into defined types, and outputs the results in tsv format
     """
 
     input_specs = InputSpecs({
         'input_folder':
         InputSpec(
-            Folder, human_name="Folder containing the alignment BAM files"),
+            Folder, human_name="Folder containing the fastq.gz files"),
         'reference_fasta':
         InputSpec(
             File, human_name="Combined reference sequences in FASTA format")
     })
 
     output_specs = OutputSpecs({
-        'output_bam_path':
-        OutputSpec(
-            Folder, human_name="Classified BAM files",
-            short_description="A folder containing the alignment files classified by reference type"),
         'classification_summary': OutputSpec(Table, human_name="Classification summary", short_description="Table containing a summary of the read classifications for each sample"),
     })
 
 
     config_specs: ConfigSpecs = {
-        "identity_threshold": IntParam(default_value=70, min_value=60, short_description=" Identity threshold"),
-        "coverage_threshold": IntParam(default_value=70, min_value=60, short_description="Coverage threshold")
+        "threads": IntParam(default_value=10, min_value=4, short_description=" threads"),
+        "min_cov": IntParam(default_value=50, min_value=50, short_description="min coverage")
     }
 
     python_file_path = os.path.join(
@@ -56,32 +53,29 @@ class SeptoriaInsertionsMfs1(Task):
         # retrive the input table
         input_folder: Folder = inputs['input_folder']
         reference_fasta: File = inputs['reference_fasta']
-        identity_threshold = params["identity_threshold"]
-        coverage_threshold = params["coverage_threshold"]
+        threads = params["threads"]
+        min_cov = params["min_cov"]
 
         # Execute the command
         shell_proxy = MfsShellProxyHelper.create_proxy(self.message_dispatcher)
-        alignment_result_path = os.path.join(shell_proxy.working_dir, 'Alignment_bam_files')
-        os.makedirs(alignment_result_path)
+        out_dir_path = os.path.join(shell_proxy.working_dir, 'out_dir_files')
+        os.makedirs(out_dir_path)
 
 
         # call python file
-        cmd = f"python3 {self.python_file_path} {input_folder.path} {alignment_result_path} {reference_fasta.path} {int(identity_threshold)} {int(coverage_threshold)}"
+        cmd = f"python3 {self.python_file_path} {input_folder.path} {reference_fasta.path} {out_dir_path} {int(threads)} {int(min_cov)}"
         shell_proxy.run(cmd, shell_mode=True)
         self.shell_proxy = shell_proxy
 
-        # display outputs :
-        # 1_normalized vcf
-        alignment_bam_files = Folder(alignment_result_path)
+        out_dir_files = Folder(out_dir_path)
 
         # Read the known and unknown variants from the output path
-        classification_summary_file_path = os.path.join(alignment_result_path, 'classification_summary.csv')
+        classification_summary_file_path = os.path.join(out_dir_path, 'merged_summary.tsv')
 
-        classification_summary_table = TableImporter.call(File(classification_summary_file_path), {'delimiter': ',', 'header': 0, 'file_format': 'csv', 'index_column': 0})
+        classification_summary_table = TableImporter.call(File(classification_summary_file_path), {'delimiter': 'tab', 'header': 0, 'file_format': 'tsv', 'index_column': 0})
 
         # Return the outputs
         return {
-            'output_bam_path': alignment_bam_files,
             'classification_summary': classification_summary_table,
 
         }

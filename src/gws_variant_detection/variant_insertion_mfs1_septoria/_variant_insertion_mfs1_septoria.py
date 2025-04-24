@@ -1,155 +1,172 @@
-import sys
-import os
-import pysam
-import mappy as mp
+import csv, gzip, os, subprocess, sys
+from typing import Dict, List, Tuple
 import pandas as pd
-import re
 
-class BAMClassifier:
-    def __init__(self, bam_dir, output_dir, combined_reference_fasta, identity_threshold, coverage_threshold):
-        self.bam_dir = bam_dir
-        self.output_dir = output_dir
-        self.combined_reference_fasta = combined_reference_fasta
-        self.identity_threshold = identity_threshold
-        self.coverage_threshold = coverage_threshold
+# ordre souhaité des colonnes dans merged_summary.tsv
+ORDER = ["Ref_Similar", "Type_1", "Type2_338", "Type2_369", "Type_3", "Other"]
 
-    def classify_samples(self):
-        # Lister les fichiers BAM dans le répertoire
-        bam_files = [f for f in os.listdir(self.bam_dir) if f.endswith(".bam")]
-        summary_data = []
+# ───────────────────────────  OUTILS SHELL  ────────────────────────────
+def run(cmd: List[str] | str) -> None:
+    """Exécute *cmd* (liste ou chaîne). Arrête le script si retour ≠ 0."""
+    if isinstance(cmd, str):
+        print(cmd); subprocess.run(cmd, shell=True, check=True)
+    else:
+        cmd = list(map(str, cmd))
+        print(" ".join(cmd)); subprocess.run(cmd, check=True)
 
-        # S'assurer que les répertoires de sortie existent
-        os.makedirs(self.output_dir, exist_ok=True)
+def ensure_blast_db(ref_fa: str) -> str:
+    """Crée la base BLAST+ si absente et renvoie le préfixe racine."""
+    root, _ = os.path.splitext(ref_fa)
+    if not os.path.exists(root + ".nsq"):
+        run(["makeblastdb", "-in", ref_fa, "-dbtype", "nucl", "-out", root])
+    else:
+        print("[makeblastdb] database already present – skipped.")
+    return root
 
-        # Charger les séquences de référence combinées et créer un aligner
-        aligner = mp.Aligner(self.combined_reference_fasta, preset="map-ont")
-        if not aligner:
-            raise ValueError("Échec du chargement des séquences de référence combinées.")
+# ───────────────────── FASTQ(.gz) ➜ FASTA (pour BLAST) ─────────────────────
+def fastq_to_fasta(fq_in: str, fa_out: str) -> int:
+    opener = gzip.open if fq_in.endswith(".gz") else open
+    n = 0
+    with opener(fq_in, "rt") as fin, open(fa_out, "w") as fout:
+        while True:
+            h = fin.readline()
+            if not h:
+                break
+            s = fin.readline()
+            fin.readline(); fin.readline()
+            fout.write(f">{h[1:]}{s}")
+            n += 1
+    return n
 
-        for bam_file in bam_files:
-            bam_path = os.path.join(self.bam_dir, bam_file)
-            sample_name = os.path.splitext(bam_file)[0]
+# ─────────────────────────────  BLAST  ──────────────────────────────
+def blast_outfmt6(fa: str, db_root: str, out_tsv: str, threads: int) -> None:
+    run([
+        "blastn", "-query", fa,
+        "-db", db_root,
+        "-evalue", "1000",          # aucune sélection à ce stade
+        "-num_threads", threads,
+        "-outfmt", "6 qseqid sseqid length slen pident",
+        "-out", out_tsv,
+    ])
 
-            print(f"Traitement de {bam_path}")
+# ─────────────────────  CLASSIFICATION PAR COUVERTURE  ─────────────────────
+def classify_reads(tsv6: str, total_reads: int, min_cov: float
+                   ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Sélectionne, pour chaque read, le hit ayant la couverture la plus élevée
+    (puis % identité en cas d’égalité).  Si coverage < *min_cov* => « Other ».
+    """
+    best: Dict[str, Dict[str, float | str]] = {}
+    with open(tsv6) as fh:
+        for q, s, length, slen, pid in csv.reader(fh, delimiter="\t"):
+            cov = 100.0 * int(length) / int(slen)
+            pid = float(pid)
+            if (
+                q not in best
+                or cov > best[q]["cov"]
+                or (cov == best[q]["cov"] and pid > best[q]["pid"])
+            ):
+                best[q] = {"ref": s, "cov": cov, "pid": pid}
 
-            # Classifier les lectures dans le fichier BAM
-            classified_reads, total_reads = self._classify_reads(bam_path, aligner)
+    # applique le seuil de couverture
+    for rec in best.values():
+        if rec["cov"] < min_cov:
+            rec["ref"] = "Other"
 
-            # Écrire les lectures classées dans de nouveaux fichiers BAM
-            for ref_name, reads in classified_reads.items():
-                if reads:  # Écrire seulement s'il y a des lectures
-                    bam_output_path = os.path.join(self.output_dir, ref_name, f"{sample_name}_{ref_name}.bam")
-                    self._write_bam(reads, bam_path, bam_output_path)
+    # ---------- fichiers de sortie par read ----------
+    metrics = pd.DataFrame.from_records(
+        {
+            "read_name": rid,
+            "best_ref":  rec["ref"],
+            "coverage_%": round(rec["cov"], 2),
+            "identity_%": round(rec["pid"], 2),
+        } for rid, rec in best.items()
+    )
 
-            # Préparer les données pour le résumé
-            data = {'Sample': sample_name, 'Total_Reads': total_reads}
-            for ref_name in aligner.seq_names:
-                count = len(classified_reads.get(ref_name, []))
-                frequency = (count / total_reads * 100) if total_reads > 0 else 0
-                data[f"{ref_name}_Count"] = count
-                data[f"{ref_name}_Frequency"] = round(frequency, 2)
-            # Compte pour la catégorie 'Other'
-            other_count = len(classified_reads.get('Other', []))
-            other_frequency = (other_count / total_reads * 100) if total_reads > 0 else 0
-            data['Other_Count'] = other_count
-            data['Other_Frequency'] = round(other_frequency, 2)
+    # ---------- résumé par classe ----------
+    counts: Dict[str, int] = {}
+    for rec in best.values():
+        counts[rec["ref"]] = counts.get(rec["ref"], 0) + 1
+    # reads sans aucun hit BLAST
+    no_hit = total_reads - len(metrics)
+    if no_hit:
+        counts["Other"] = counts.get("Other", 0) + no_hit
 
-            summary_data.append(data)
+    summary = (
+        pd.Series(counts, name="Count")
+          .to_frame()
+          .assign(Frequency=lambda d: 100 * d.Count / total_reads)
+          .reset_index(names="Class")
+    )
+    return metrics, summary
 
-        # Sauvegarder les données du résumé dans un fichier CSV
-        summary_df = pd.DataFrame(summary_data)
+# ───────────────────────  MERGE DES RÉSUMÉS  ────────────────────────
+def merge_summaries(out_dir: str) -> None:
+    files = [f for f in os.listdir(out_dir) if f.endswith("_summary.csv")]
+    if not files:
+        print("No *_summary.csv produced – nothing to merge."); return
 
-        # Fonction pour extraire le numéro de barcode du nom de l'échantillon
-        def extract_barcode_number(sample_name):
-            match = re.search(r'barcode(\d+)', sample_name)
-            if match:
-                return int(match.group(1))  # Extraire la partie numérique du barcode en tant qu'entier
-            return float('inf')  # Si aucun barcode n'est trouvé, le placer à la fin lors du tri
+    rows = []
+    for fn in files:
+        sample = fn.replace("_summary.csv", "")
+        df = pd.read_csv(os.path.join(out_dir, fn))
+        total = int(df["Count"].sum())
+        row = {"Sample": sample, "Total_Reads": total}
+        for _, r in df.iterrows():
+            cls = r["Class"]
+            row[f"{cls}_Count"] = int(r["Count"])
+            row[f"{cls}_Frequency"] = float(r["Frequency"])
+        rows.append(row)
 
-        # Trier le DataFrame par numéro de barcode extrait
-        summary_df['Barcode_Num'] = summary_df['Sample'].apply(extract_barcode_number)
-        summary_df = summary_df.sort_values('Barcode_Num').drop('Barcode_Num', axis=1)
+    merged = pd.DataFrame(rows).fillna(0)
 
-        # Écrire le DataFrame trié dans un fichier CSV
-        summary_csv_path = os.path.join(self.output_dir, "classification_summary.csv")
-        summary_df.to_csv(summary_csv_path, index=False)
-        print(f"Résumé sauvegardé dans {summary_csv_path}")
+    cols = ["Sample", "Total_Reads"]
+    for cls in ORDER:
+        cols += [f"{cls}_Count", f"{cls}_Frequency"]
+        if f"{cls}_Count" not in merged.columns:
+            merged[f"{cls}_Count"] = 0
+            merged[f"{cls}_Frequency"] = 0.0
 
-    def _classify_reads(self, bam_path, aligner):
-        classified_reads = {ref_name: [] for ref_name in aligner.seq_names}
-        classified_reads['Other'] = []
-        total_reads = 0
+    merged = merged[cols].sort_values("Sample")
+    merged.to_csv(os.path.join(out_dir, "merged_summary.tsv"),
+                  sep="\t", index=False)
+    print("[INFO] merged_summary.tsv written.")
 
-        with pysam.AlignmentFile(bam_path, "rb") as bam_file:
-            for read in bam_file:
-                if read.is_secondary or read.is_supplementary:
-                    continue
+def main() -> None:
+    fastq_dir   = sys.argv[1]
+    reference_fa= sys.argv[2]
+    out_dir     = sys.argv[3]
+    threads      = int(sys.argv[4])
+    min_cov      = int(sys.argv[5])
 
-                total_reads += 1
+    os.makedirs(out_dir, exist_ok=True)
+    db_root = ensure_blast_db(reference_fa)
 
-                seq = read.query_sequence
+    fastqs = sorted(
+        f for f in os.listdir(fastq_dir)
+        if f.endswith((".gz", ".fastq", ".fq"))
+    )
+    if not fastqs:
+        sys.exit(f"No FASTQ files found in {fastq_dir}")
 
-                if seq is None:
-                    continue
+    for fq in fastqs:
+        fq_path = os.path.join(fastq_dir, fq)
+        sample  = fq.rsplit(".", 1)[0].replace(".fastq", "")
+        fa_tmp     = os.path.join(out_dir, f"{sample}.fa")
+        blast_tsv  = os.path.join(out_dir, f"{sample}.blast.tsv")
+        metrics_tsv= os.path.join(out_dir, f"{sample}_read_metrics.tsv")
+        summary_csv= os.path.join(out_dir, f"{sample}_summary.csv")
 
-                # Aligner la séquence de la lecture sur les références combinées
-                hits = list(aligner.map(seq))
+        total = fastq_to_fasta(fq_path, fa_tmp)
+        blast_outfmt6(fa_tmp, db_root, blast_tsv, threads)
 
-                if not hits:
-                    classified_reads['Other'].append(read)
-                    continue
+        metrics, summary = classify_reads(blast_tsv, total, min_cov)
+        metrics.to_csv(metrics_tsv, sep="\t", index=False)
+        summary.to_csv(summary_csv, index=False)
 
-                # Trier les hits par score de mapping (mapq)
-                hits.sort(key=lambda x: x.mapq, reverse=True)
-                best_hit = hits[0]
+        os.remove(fa_tmp); os.remove(blast_tsv)
 
-                # Calculer le pourcentage d'identité
-                identity = (best_hit.mlen / best_hit.blen) * 100
+    merge_summaries(out_dir)
 
-                # Obtenir la longueur de la séquence de référence correspondante
-                ref_seq = aligner.seq(best_hit.ctg)
-                ref_length = len(ref_seq)
-
-                # Calculer la couverture alignée de la référence
-                ref_coverage = ((best_hit.r_en - best_hit.r_st) / ref_length) * 100
-
-                # Vérifier les critères de seuil
-                if identity >= self.identity_threshold and ref_coverage >= self.coverage_threshold:
-                    ref_name = best_hit.ctg
-                    classified_reads[ref_name].append(read)
-                else:
-                    classified_reads['Other'].append(read)
-
-        return classified_reads, total_reads
-
-    def _write_bam(self, reads, original_bam_path, bam_output_path):
-        # Écrire les lectures classées dans un nouveau fichier BAM
-        os.makedirs(os.path.dirname(bam_output_path), exist_ok=True)  # S'assurer que le répertoire existe
-        with pysam.AlignmentFile(original_bam_path, "rb") as original_bam:
-            with pysam.AlignmentFile(bam_output_path, "wb", header=original_bam.header) as out_bam:
-                for read in reads:
-                    out_bam.write(read)
-
-        # Trier et indexer le fichier BAM
-        sorted_bam_path = bam_output_path.replace(".bam", ".sorted.bam")
-        pysam.sort("-o", sorted_bam_path, bam_output_path)
-        pysam.index(sorted_bam_path)
-
-        # Supprimer le fichier BAM non trié
-        os.remove(bam_output_path)
-
-    # Définir les répertoires d'entrée et de sortie, et le chemin vers la séquence de référence combinée
-bam_dir = sys.argv[1]
-output_dir = sys.argv[2]
-combined_reference_fasta = sys.argv[3]
-identity_threshold = int(sys.argv[4])
-coverage_threshold = int(sys.argv[5])
-
-classifier = BAMClassifier(
-    bam_dir,
-    output_dir,
-    combined_reference_fasta,
-    identity_threshold,
-    coverage_threshold
-)
-classifier.classify_samples()
+if __name__ == "__main__":
+    main()
