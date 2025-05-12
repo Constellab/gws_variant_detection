@@ -16,7 +16,7 @@ from ..base_env.Filtering_env import FilteringShellProxyHelper
                 short_description="Elimination of low-quality reads and fixing the number of reads per sample.")
 class ReadsQualityFilteringMfs1(Task):
     """
-    This task automates the process of filtering and randomly sampling reads from sequencing data using fastp and seqtk respectively.
+    This task automates the process of filtering and randomly sampling reads from sequencing data using chopper and seqtk respectively.
     The number of threads, a quality threshold, and the number of reads to process must be specified.
     """
 

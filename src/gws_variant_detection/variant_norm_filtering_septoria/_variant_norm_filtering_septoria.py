@@ -1,4 +1,3 @@
-
 import sys
 import os
 import pandas as pd
@@ -50,14 +49,18 @@ class VCFWorkflowFiltering:
         self.total_reads_per_barcode = {}
 
         # read_variants_table.csv
-        self.read_variants_path = os.path.join(self.output_folder, 'read_variants_table.csv')
+        self.read_variants_path = os.path.join(
+            self.output_folder, "read_variants_table.csv"
+        )
         if not os.path.exists(self.read_variants_path):
             df_init = pd.DataFrame(columns=["Read", "Variants"])
             df_init.to_csv(self.read_variants_path, index=False)
             print(f"Initialisé {self.read_variants_path} avec les en-têtes.")
 
         # filtered_reads_count.csv
-        self.filtered_reads_count_path = os.path.join(self.output_folder, 'filtered_reads_count.csv')
+        self.filtered_reads_count_path = os.path.join(
+            self.output_folder, "filtered_reads_count.csv"
+        )
 
     def create_folder(self, folder_path):
         """Crée un dossier s'il n'existe pas déjà."""
@@ -65,89 +68,98 @@ class VCFWorkflowFiltering:
             os.makedirs(folder_path)
             print(f"Créé le dossier : {folder_path}")
 
-    def get_variant_names(self):
+    # AJOUT C136
 
+    @staticmethod
+    def consolidate_c136(variants_list):
+        """
+        Remplace C136_uno + C136_dos par C136 quand ils co-existent sur un même read.
+        """
+        if "C136_uno" in variants_list and "C136_dos" in variants_list:
+            return [v for v in variants_list if v not in ("C136_uno", "C136_dos")] + [
+                "C136"
+            ]
+        return [v for v in variants_list if v not in ("C136_uno", "C136_dos")]
+
+    # ------------------------------------------------------------------
+
+    def get_variant_names(self):
         all_variant_names = {
             # CYP51
-            ('CYP51', 149,  'T', 'C'): 'L50S',
-            ('CYP51', 320,  'A', 'T'): 'D107V',
-            ('CYP51', 401,  'A', 'G'): 'D134G',
-            ('CYP51', 407,  'T', 'C'): 'V136A',
-            ('CYP51', 410,  'A', 'T'): 'Y137F',
-            ('CYP51', 433,  'A', 'C'): 'M145L_CTG',
-            ('CYP51', 433,  'A', 'T'): 'M145L_TTG',
-            ('CYP51', 590,  'A', 'G'): 'N178S',
-            ('CYP51', 620,  'G', 'A'): 'S188N',
-            ('CYP51', 679,  'T', 'A'): 'S208T',
-            ('CYP51', 841,  'T', 'C'): 'Y262H',
-            ('CYP51', 1398, 'C', 'T'): 'R376C',
-            ('CYP51', 1408, 'C', 'G'): 'A379G',
-            ('CYP51', 1413, 'A', 'G'): 'I381V',
-            ('CYP51', 1648, 'A', 'C'): 'Y459S',
-            ('CYP51', 1645, 'ACTATGG', 'A'): 'ΔY459/G460',
-            ('CYP51', 1654, 'A', 'C'): 'Y461S',
-            ('CYP51', 1653, 'T', 'C'): 'Y461H',
-            ('CYP51', 1811, 'C', 'A'): 'N513K_AAA',
-            ('CYP51', 1811, 'C', 'G'): 'N513K_AAG',
-            ('CYP51', 1843, 'G', 'C'): 'S524T',
-            ('CYP51', 1500, 'G', 'A'): 'A410T',
-
+            ("CYP51", 149, "T", "C"): "L50S",
+            ("CYP51", 320, "A", "T"): "D107V",
+            ("CYP51", 401, "A", "G"): "D134G",
+            ("CYP51", 407, "T", "C"): "V136A",
+            ("CYP51", 410, "A", "T"): "Y137F",
+            ("CYP51", 433, "A", "C"): "M145L_CTG",
+            ("CYP51", 433, "A", "T"): "M145L_TTG",
+            ("CYP51", 590, "A", "G"): "N178S",
+            ("CYP51", 620, "G", "A"): "S188N",
+            ("CYP51", 679, "T", "A"): "S208T",
+            ("CYP51", 841, "T", "C"): "Y262H",
+            ("CYP51", 1398, "C", "T"): "R376C",
+            ("CYP51", 1408, "C", "G"): "A379G",
+            ("CYP51", 1413, "A", "G"): "I381V",
+            ("CYP51", 1648, "A", "C"): "Y459S",
+            ("CYP51", 1645, "ACTATGG", "A"): "ΔY459/G460",
+            ("CYP51", 1654, "A", "C"): "Y461S",
+            ("CYP51", 1653, "T", "C"): "Y461H",
+            ("CYP51", 1811, "C", "A"): "N513K_AAA",
+            ("CYP51", 1811, "C", "G"): "N513K_AAG",
+            ("CYP51", 1843, "G", "C"): "S524T",
+            ("CYP51", 1500, "G", "A"): "A410T",
+            # --- Composite C136 (uno / dos)
+            ("CYP51", 406, "G", "T"): "C136_uno",
+            ("CYP51", 407, "T", "G"): "C136_dos",
             # CytB
-            ('CytB', 110, 'G', 'T'): 'G37V',
-            ('CytB', 428, 'G', 'C'): 'G143A',
-
+            ("CytB", 110, "G", "T"): "G37V",
+            ("CytB", 428, "G", "C"): "G143A",
             # SdhB
-            ('SdhB', 788, 'A', 'C'): 'N225T',
-            ('SdhB', 788, 'A', 'T'): 'N225I',
-            ('SdhB', 908, 'G', 'C'): 'R265P',
-            ('SdhB', 914, 'A', 'T'): 'H267L',
-            ('SdhB', 917, 'C', 'T'): 'T268I',
-            ('SdhB', 916, 'A', 'G'): 'T268A',
-
+            ("SdhB", 788, "A", "C"): "N225T",
+            ("SdhB", 788, "A", "T"): "N225I",
+            ("SdhB", 908, "G", "C"): "R265P",
+            ("SdhB", 914, "A", "T"): "H267L",
+            ("SdhB", 917, "C", "T"): "T268I",
+            ("SdhB", 916, "A", "G"): "T268A",
             # SdhC
-            ('SdhC', 365, 'C', 'A'): 'T79N',
-            ('SdhC', 368, 'G', 'C'): 'W80S',
-            ('SdhC', 379, 'G', 'T'): 'A84F',
-            ('SdhC', 386, 'A', 'G'): 'N86S',
-            ('SdhC', 387, 'C', 'A'): 'N86K_AAA',
-            ('SdhC', 387, 'C', 'G'): 'N86K_AAG',
-            ('SdhC', 508, 'C', 'G'): 'P127A',
-            ('SdhC', 582, 'G', 'C'): 'R151S_AGC',
-            ('SdhC', 582, 'G', 'T'): 'R151S_AGT',
-            ('SdhC', 581, 'G', 'C'): 'R151T',
-            ('SdhC', 581, 'G', 'T'): 'R151M',
-            ('SdhC', 580, 'A', 'G'): 'R151G',
-            ('SdhC', 584, 'A', 'G'): 'H152R',
-            ('SdhC', 611, 'T', 'G'): 'I161S',
-            ('SdhC', 625, 'G', 'A'): 'V166M',
-            ('SdhC', 632, 'C', 'G'): 'T168R',
-
+            ("SdhC", 365, "C", "A"): "T79N",
+            ("SdhC", 368, "G", "C"): "W80S",
+            ("SdhC", 379, "G", "T"): "A84F",
+            ("SdhC", 386, "A", "G"): "N86S",
+            ("SdhC", 387, "C", "A"): "N86K_AAA",
+            ("SdhC", 387, "C", "G"): "N86K_AAG",
+            ("SdhC", 508, "C", "G"): "P127A",
+            ("SdhC", 582, "G", "C"): "R151S_AGC",
+            ("SdhC", 582, "G", "T"): "R151S_AGT",
+            ("SdhC", 581, "G", "C"): "R151T",
+            ("SdhC", 581, "G", "T"): "R151M",
+            ("SdhC", 580, "A", "G"): "R151G",
+            ("SdhC", 584, "A", "G"): "H152R",
+            ("SdhC", 611, "T", "G"): "I161S",
+            ("SdhC", 625, "G", "A"): "V166M",
+            ("SdhC", 632, "C", "G"): "T168R",
             # SdhD
-            ('SdhD', 139, 'C', 'T'): 'R47W',
-            ('SdhD', 148, 'A', 'T'): 'I50F',
-            ('SdhD', 148, 'A', 'C'): 'I50L',
-            ('SdhD', 399, 'A', 'G'): 'M114V',
-            ('SdhD', 497, 'A', 'G'): 'D129G',
-            ('SdhD', 498, 'C', 'A'): 'D129E_GAA',
-            ('SdhD', 498, 'C', 'G'): 'D129E_GAG',
+            ("SdhD", 139, "C", "T"): "R47W",
+            ("SdhD", 148, "A", "T"): "I50F",
+            ("SdhD", 148, "A", "C"): "I50L",
+            ("SdhD", 399, "A", "G"): "M114V",
+            ("SdhD", 497, "A", "G"): "D129G",
+            ("SdhD", 498, "C", "A"): "D129E_GAA",
+            ("SdhD", 498, "C", "G"): "D129E_GAG",
         }
-        # Filtrer uniquement le gène choisi (self.gene_name)
+        # Filtrer uniquement le gène choisi
         return {k: v for k, v in all_variant_names.items() if k[0] == self.gene_name}
 
     def get_barcode_list(self):
         """Récupère la liste des barcodes à partir des noms de fichiers BAM."""
         barcodes = set()
         for bam_file in os.listdir(self.bam_folder):
-            if bam_file.endswith('.bam'):
-                barcode = os.path.splitext(bam_file)[0].split('-')[0]
+            if bam_file.endswith(".bam"):
+                barcode = os.path.splitext(bam_file)[0].split("-")[0]
                 barcodes.add(barcode)
         return sorted(list(barcodes))
 
-
-    # FILTRES + LECTURES
-
     def filter_unique_reads(self, bam_path):
-        """Filtre reads (deduplicate) + max_reads limit."""
         unique_reads = set()
         filtered_reads = []
         with pysam.AlignmentFile(bam_path, "rb") as bamfile:
@@ -160,15 +172,17 @@ class VCFWorkflowFiltering:
         return filtered_reads, len(unique_reads)
 
     def save_filtered_reads_count(self, barcode, count):
-        df = pd.DataFrame([[barcode, count]], columns=["Barcode","Filtered_Read_Count"])
+        df = pd.DataFrame([[barcode, count]], columns=["Barcode", "Filtered_Read_Count"])
         if os.path.exists(self.filtered_reads_count_path):
-            df.to_csv(self.filtered_reads_count_path, mode='a', header=False, index=False)
+            df.to_csv(
+                self.filtered_reads_count_path, mode="a", header=False, index=False
+            )
         else:
             df.to_csv(self.filtered_reads_count_path, index=False)
         print(f"Sauvegardé le nombre de reads uniques filtrés pour {barcode}: {count}")
 
     def split_bam_by_read(self):
-        bam_files = [f for f in os.listdir(self.bam_folder) if f.endswith('.bam')]
+        bam_files = [f for f in os.listdir(self.bam_folder) if f.endswith(".bam")]
         bam_paths = [os.path.join(self.bam_folder, bf) for bf in bam_files]
         with Pool(processes=self.threads) as pool:
             pool.map(self.process_bam_file, bam_paths)
@@ -176,7 +190,7 @@ class VCFWorkflowFiltering:
     def process_bam_file(self, bam_path):
         bam_file = os.path.basename(bam_path)
         bam_basename = os.path.splitext(bam_file)[0]
-        barcode = bam_basename.split('-')[0]
+        barcode = bam_basename.split("-")[0]
         barcode_folder = os.path.join(self.per_read_bam_folder, barcode)
         self.create_folder(barcode_folder)
 
@@ -184,8 +198,12 @@ class VCFWorkflowFiltering:
         try:
             filtered_reads, unique_count = self.filter_unique_reads(bam_path)
             for idx, read in enumerate(filtered_reads, start=1):
-                out_bam_path = os.path.join(barcode_folder, f"{bam_basename}_read{idx}.bam")
-                with pysam.AlignmentFile(out_bam_path, "wb", template=pysam.AlignmentFile(bam_path, "rb")) as out_bam:
+                out_bam_path = os.path.join(
+                    barcode_folder, f"{bam_basename}_read{idx}.bam"
+                )
+                with pysam.AlignmentFile(
+                    out_bam_path, "wb", template=pysam.AlignmentFile(bam_path, "rb")
+                ) as out_bam:
                     out_bam.write(read)
                 pysam.index(out_bam_path)
             print(f"Divisé {bam_file} => {len(filtered_reads)} BAM uniques/filtrés.")
@@ -193,11 +211,13 @@ class VCFWorkflowFiltering:
         except Exception as e:
             print(f"Erreur sur {bam_file}: {e}")
 
-
-    # MINIPILEUP PAR LECTURE
-
+    # ------------------------------------------------------------------
+    # MINIPILEUP PAR LECTURE (inchangé)
+    # ------------------------------------------------------------------
     def call_variants_per_read(self):
-        bam_folders = [os.path.join(self.per_read_bam_folder, bc) for bc in self.barcode_list]
+        bam_folders = [
+            os.path.join(self.per_read_bam_folder, bc) for bc in self.barcode_list
+        ]
         with Pool(processes=self.threads) as pool:
             pool.map(self.process_bam_folder, bam_folders)
         print("Appel variants minipileup par lecture terminé.")
@@ -207,25 +227,31 @@ class VCFWorkflowFiltering:
         barcode_vcf_folder = os.path.join(self.per_read_vcf_folder, barcode)
         self.create_folder(barcode_vcf_folder)
 
-        bam_files = [f for f in os.listdir(barcode_bam_folder) if f.endswith('.bam')]
+        bam_files = [
+            f for f in os.listdir(barcode_bam_folder) if f.endswith(".bam")
+        ]
         for bam_file in bam_files:
             bam_path = os.path.join(barcode_bam_folder, bam_file)
-            vcf_file = bam_file.replace('.bam', '.vcf')
+            vcf_file = bam_file.replace(".bam", ".vcf")
             vcf_path = os.path.join(barcode_vcf_folder, vcf_file)
 
             cmd = f"{self.minipileup_path} -vc -f {self.ref_genome} {bam_path}"
             try:
-                with open(vcf_path, 'w') as out_vcf:
-                    subprocess.run(cmd, shell=True, check=True, stdout=out_vcf, stderr=subprocess.PIPE)
+                with open(vcf_path, "w") as out_vcf:
+                    subprocess.run(
+                        cmd, shell=True, check=True, stdout=out_vcf, stderr=subprocess.PIPE
+                    )
                 print(f"Minipileup => {bam_file}, output: {vcf_file}")
             except subprocess.CalledProcessError as e:
                 print(f"Minipileup échoué: {e.stderr.decode().strip()}")
 
-
-    # NORMALISATION DES VCF
-
+    # ------------------------------------------------------------------
+    # NORMALISATION DES VCF (inchangé)
+    # ------------------------------------------------------------------
     def normalize_vcfs(self):
-        vcf_folders = [os.path.join(self.per_read_vcf_folder, bc) for bc in self.barcode_list]
+        vcf_folders = [
+            os.path.join(self.per_read_vcf_folder, bc) for bc in self.barcode_list
+        ]
         with Pool(processes=self.threads) as pool:
             pool.map(self.process_vcf_folder, vcf_folders)
         print("Normalisation des VCF complétée.")
@@ -235,36 +261,42 @@ class VCFWorkflowFiltering:
         norm_folder = os.path.join(self.normalized_vcf_folder, barcode)
         self.create_folder(norm_folder)
 
-        vcf_files = [f for f in os.listdir(barcode_vcf_folder) if f.endswith('.vcf')]
+        vcf_files = [f for f in os.listdir(barcode_vcf_folder) if f.endswith(".vcf")]
         for vcf_file in vcf_files:
             input_vcf = os.path.join(barcode_vcf_folder, vcf_file)
-            step1_vcf = os.path.join(norm_folder, f"{os.path.splitext(vcf_file)[0]}_norm_step1.vcf")
-            step2_vcf = os.path.join(norm_folder, f"{os.path.splitext(vcf_file)[0]}_norm_step2.vcf")
+            step1_vcf = os.path.join(
+                norm_folder, f"{os.path.splitext(vcf_file)[0]}_norm_step1.vcf"
+            )
+            step2_vcf = os.path.join(
+                norm_folder, f"{os.path.splitext(vcf_file)[0]}_norm_step2.vcf"
+            )
 
             try:
-                subprocess.run(['bcftools','norm','-m-','-o', step1_vcf, input_vcf], check=True)
-                subprocess.run(['bcftools','norm','-f', self.ref_genome, '-cw','-o', step2_vcf, step1_vcf], check=True)
+                subprocess.run(["bcftools", "norm", "-m-", "-o", step1_vcf, input_vcf], check=True)
+                subprocess.run(
+                    ["bcftools", "norm", "-f", self.ref_genome, "-cw", "-o", step2_vcf, step1_vcf],
+                    check=True,
+                )
                 print(f"VCF normalisé => {step2_vcf}")
             except subprocess.CalledProcessError as e:
                 print(f"bcftools norm échoué pour {vcf_file} : {e.stderr.decode().strip()}")
 
-
+    # ------------------------------------------------------------------
     # COLLECTE DES VARIANTS & GÉNÉRATION
-
+    # ------------------------------------------------------------------
     def extract_variants_from_vcf(self, vcf_path, variant_map):
         """
         Lit un VCF normalisé. Pour chaque ligne où CHROM == self.gene_name,
-        si (chrom, pos, ref, alt) figure dans variant_map => on l'ajoute à variants_present.
-        (Plus de "E203" logic => supprimé.)
+        si (chrom, pos, ref, alt) figure dans variant_map => on l'ajoute.
         """
         variants_present = []
         try:
-            with open(vcf_path,'r') as f:
+            with open(vcf_path, "r") as f:
                 for line in f:
-                    if line.startswith('#'):
+                    if line.startswith("#"):
                         continue
-                    cols = line.strip().split('\t')
-                    if len(cols)<5:
+                    cols = line.strip().split("\t")
+                    if len(cols) < 5:
                         continue
                     chrom = cols[0]
                     if chrom != self.gene_name:
@@ -284,48 +316,50 @@ class VCFWorkflowFiltering:
             barcode_norm_folder = os.path.join(self.normalized_vcf_folder, barcode)
             if not os.path.exists(barcode_norm_folder):
                 continue
-            vcf_files = [f for f in os.listdir(barcode_norm_folder) if f.endswith('_norm_step2.vcf')]
+            vcf_files = [
+                f for f in os.listdir(barcode_norm_folder) if f.endswith("_norm_step2.vcf")
+            ]
             total_processed = 0
 
             for vcf_file in vcf_files:
                 vcf_path = os.path.join(barcode_norm_folder, vcf_file)
                 read_vars = self.extract_variants_from_vcf(vcf_path, self.variant_names)
+                read_vars = self.consolidate_c136(read_vars)  # <-- ajout C136
                 total_processed += 1
 
                 read_basename = os.path.splitext(vcf_file)[0]
-                read_id = read_basename.replace('_norm_step2','')
-                self.read_variant_records.append({'Read': read_id, 'Variants': read_vars})
+                read_id = read_basename.replace("_norm_step2", "")
+                self.read_variant_records.append({"Read": read_id, "Variants": read_vars})
 
             self.total_reads_per_barcode[barcode] = total_processed
             print(f"{barcode}: {total_processed} lectures => variants collectés.")
 
-        # On sauvegarde read-variants
+        # Sauvegarde, puis génération des fichiers de sortie
         self.save_read_variants_table()
-
-        # On génère known_variants_filtered
         self.generate_known_variants_filtered()
-
-        # On génère unknown_variants
         self.generate_unknown_variants()
 
     def save_read_variants_table(self):
         df = pd.DataFrame(self.read_variant_records)
         if not df.empty:
-            df['Variants'] = df['Variants'].apply(lambda vs: str(vs) if vs else '[]')
+            df["Variants"] = df["Variants"].apply(lambda vs: str(vs) if vs else "[]")
             df.to_csv(self.read_variants_path, index=False)
             print(f"Tableau read_variants_table => {self.read_variants_path}")
         else:
             print("Aucune variante collectée => read_variants_table non créé.")
 
-    # AUTRES FONCTIONS (KNOWN, UNKNOWN, WILDTYPE)
-
+    # ------------------------------------------------------------------
+    # KNOWN / UNKNOWN / WILDTYPE
+    # ------------------------------------------------------------------
     def calculate_total_reads_per_barcode(self):
         totals = {}
         if os.path.exists(self.read_variants_path):
             df = pd.read_csv(self.read_variants_path)
-            if not df.empty and 'Read' in df.columns:
-                df['Barcode'] = df['Read'].apply(lambda x: x.split('_')[0].split('-')[0])
-                totals = df.groupby('Barcode').size().to_dict()
+            if not df.empty and "Read" in df.columns:
+                df["Barcode"] = df["Read"].apply(
+                    lambda x: x.split("_")[0].split("-")[0]
+                )
+                totals = df.groupby("Barcode").size().to_dict()
         return totals
 
     def generate_known_variants_filtered(self):
@@ -337,54 +371,71 @@ class VCFWorkflowFiltering:
         if df.empty:
             print("read_variants_table.csv vide => known_variants_filtered non généré.")
             return
-        if 'Read' not in df.columns or 'Variants' not in df.columns:
+        if "Read" not in df.columns or "Variants" not in df.columns:
             print("Colonnes manquantes => annulation.")
             return
 
-        # On parse la colonne Variants (qui est str(list()))
-        df['Barcode'] = df['Read'].apply(lambda x: x.split('_')[0].split('-')[0])
-        df['Variants'] = df['Variants'].apply(lambda x: ast.literal_eval(x) if isinstance(x,str) else [])
+        df["Barcode"] = df["Read"].apply(lambda x: x.split("_")[0].split("-")[0])
+        df["Variants"] = df["Variants"].apply(
+            lambda x: ast.literal_eval(x) if isinstance(x, str) else []
+        )
+        df["Variants"] = df["Variants"].apply(self.consolidate_c136)  # <-- ajout C136
 
-        # Les variants "connus" => set(self.variant_names.values())
-        known_variants = set(self.variant_names.values())
+        known_variants = set(self.variant_names.values()) | {"C136"}  # <-- ajout C136
+        df["Known_Variants"] = df["Variants"].apply(
+            lambda vs: [v for v in vs if v in known_variants]
+        )
 
-        # On ne garde que ceux dans known_variants
-        df['Known_Variants'] = df['Variants'].apply(lambda vs: [v for v in vs if v in known_variants])
-
-        known_exploded = df.explode('Known_Variants').dropna(subset=['Known_Variants'])
+        known_exploded = df.explode("Known_Variants").dropna(
+            subset=["Known_Variants"]
+        )
         if known_exploded.empty:
             print("Aucun variant connu => known_variants_filtered vide.")
-            out_empty = os.path.join(self.output_folder,'known_variants_filtered.tsv')
-            pd.DataFrame(columns=['variant_name']).to_csv(out_empty,sep='\t',index=False)
+            out_empty = os.path.join(self.output_folder, "known_variants_filtered.tsv")
+            pd.DataFrame(columns=["variant_name"]).to_csv(
+                out_empty, sep="\t", index=False
+            )
             return
 
-        # Count per (Barcode, Known_Variants)
-        known_counts = known_exploded.groupby(['Barcode','Known_Variants']).size().reset_index(name='Count')
-        pivot_counts = known_counts.pivot_table(index='Known_Variants', columns='Barcode', values='Count', fill_value=0).reset_index()
-        pivot_counts.rename(columns={'Known_Variants':'variant_name'}, inplace=True)
+        known_counts = (
+            known_exploded.groupby(["Barcode", "Known_Variants"])
+            .size()
+            .reset_index(name="Count")
+        )
+        pivot_counts = (
+            known_counts.pivot_table(
+                index="Known_Variants",
+                columns="Barcode",
+                values="Count",
+                fill_value=0,
+            )
+            .reset_index()
+        )
+        pivot_counts.rename(columns={"Known_Variants": "variant_name"}, inplace=True)
 
         self.total_reads_per_barcode = self.calculate_total_reads_per_barcode()
 
         for bc in self.barcode_list:
             count_col = f"{bc}_VARIANT_COUNT"
             freq_col = f"{bc}_VARIANT_FREQ"
-            tot = self.total_reads_per_barcode.get(bc,1)
+            tot = self.total_reads_per_barcode.get(bc, 1)
             if bc in pivot_counts.columns:
-                pivot_counts[freq_col] = pivot_counts[bc].apply(lambda c: f"{(c/tot*100):.2f}%" if tot>0 else "0.00%")
+                pivot_counts[freq_col] = pivot_counts[bc].apply(
+                    lambda c: f"{(c / tot * 100):.2f}%" if tot > 0 else "0.00%"
+                )
                 pivot_counts.rename(columns={bc: count_col}, inplace=True)
             else:
                 pivot_counts[count_col] = 0
                 pivot_counts[freq_col] = "0.00%"
 
-        cols = ['variant_name']
+        cols = ["variant_name"]
         for bc in self.barcode_list:
             cols += [f"{bc}_VARIANT_COUNT", f"{bc}_VARIANT_FREQ"]
         known_variants_filtered_df = pivot_counts[cols]
 
-        out_path = os.path.join(self.output_folder,'known_variants_filtered.tsv')
-        known_variants_filtered_df.to_csv(out_path,sep='\t',index=False)
+        out_path = os.path.join(self.output_folder, "known_variants_filtered.tsv")
+        known_variants_filtered_df.to_csv(out_path, sep="\t", index=False)
         print(f"known_variants_filtered.tsv => {out_path}")
-
     def generate_unknown_variants(self):
         print("Génération de unknown_variants.tsv via minipileup sur BAM complet...")
         unknown_dict = {}
@@ -669,8 +720,6 @@ gene_positions = {
     ]
 }
 
-
-
 bam_folder = sys.argv[1]
 ref_genome = sys.argv[2]
 gene_name = str(sys.argv[3])
@@ -688,6 +737,6 @@ workflow = VCFWorkflowFiltering(
     minipileup_path=minipileup_path,
     output_folder=output_folder,
     threads=threads,
-    max_reads=max_reads
+    max_reads=max_reads,
 )
 workflow.run()
