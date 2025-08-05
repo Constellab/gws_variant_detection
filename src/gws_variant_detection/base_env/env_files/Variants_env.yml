@@ -3,7 +3,7 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - python-kaleido==0.2.1 # for nanoplot
+  - python-kaleido==0.2.1 # for nanoplot execution
   - minimap2==2.26    # for mapping
   - samtools==1.19.2
   - bcftools==1.19   #for vcf file manip
