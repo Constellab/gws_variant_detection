@@ -80,7 +80,7 @@ class VariantsFilteringSeptoria(Task):
 
         if not os.path.isfile(minipileup_file_path):
             # If the executable does not exist, navigate to the directory and run the make command
-            shell_proxy = VariantsShellProxyHelper.create_proxy(minipileup_folder_v1)
+            shell_proxy = VariantsShellProxyHelper.create_proxy(self.message_dispatcher, minipileup_folder_v1)
 
             # Execute the make command
             make_command = "make"
