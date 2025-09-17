@@ -28,6 +28,10 @@ class VariantsFilteringUcine(Task):
         'input_file':
         InputSpec(
             File, human_name="File containing gene reference sequence"),
+        'config_json':
+        InputSpec(
+            File, human_name="Variants configuration JSON file"),
+
     })
 
     output_specs = OutputSpecs({
@@ -50,7 +54,7 @@ class VariantsFilteringUcine(Task):
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),
-        "_variant_norm_filtering_ucine.py"
+        "../variant_norm_filtering/_variant_norm_filtering.py"
     )
 
     shell_proxy: ShellProxy = None
@@ -61,6 +65,7 @@ class VariantsFilteringUcine(Task):
         # retrive the input table
         input_folder: Folder = inputs['input_folder']
         input_file: File = inputs['input_file']
+        config_json: File = inputs['config_json']
         gene_name = params["gene_name"]
         reads_to_process = params["reads_to_process"]
         num_threads = params["num_threads"]
@@ -96,7 +101,7 @@ class VariantsFilteringUcine(Task):
 
 
         # call python file
-        cmd = f"python3 {self.python_file_path} {input_folder.path} {input_file.path } {str(gene_name)} {minipileup_file_path} {known_unknown_result_path} {int(num_threads)} {int(reads_to_process)}"
+        cmd = f"python3 {self.python_file_path} {input_folder.path} {input_file.path } {str(gene_name)} {minipileup_file_path} {known_unknown_result_path} {int(num_threads)} {int(reads_to_process)} {config_json.path}"
         shell_proxy.run(cmd, shell_mode=True)
         self.shell_proxy = shell_proxy
 
