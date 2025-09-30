@@ -31,7 +31,7 @@ class NanoPlotSummary:
         self.quality_output_folder = quality_output_folder
         self.desired_columns = [
             'number_of_reads', 'number_of_bases', 'median_read_length', 'mean_read_length',
-            'Reads >Q5:', 'Reads >Q7:', 'Reads >Q10:', 'Reads >Q12:', 'Reads >Q15:'
+            'Reads >Q5:', 'Reads >Q7:', 'Reads >Q10:', 'Reads >Q12:', 'Reads >Q15:', 'Reads >Q20:'
         ]
 
     def clean_column_names(self, df):
@@ -59,7 +59,7 @@ class NanoPlotSummary:
                             value = parts[1].split(')')[0].strip()  # Supprime tout après la parenthèse fermante
                             if metric in self.desired_columns:
                                 if metric in [
-                                    'Reads >Q5:', 'Reads >Q7:', 'Reads >Q10:', 'Reads >Q12:', 'Reads >Q15:'
+                                    'Reads >Q5:', 'Reads >Q7:', 'Reads >Q10:', 'Reads >Q12:', 'Reads >Q15:', 'Reads >Q20:'
                                 ]:
                                     value += ')'  # Préserve la parenthèse fermante pour ces métriques
                                 data[metric] = value
