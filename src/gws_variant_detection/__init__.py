@@ -1,5 +1,5 @@
 from .reads_classification.reads_classification import RawReadsClassification as RawReadsClassification
-from .filtering_fastp.filtering_fastp import ReadsQualityFiltering as ReadsQualityFiltering
+from .filtering_chopper.filtering_chopper import ReadsQualityFiltering as ReadsQualityFiltering
 from .filtering_chopper_mfs1.filtering_chopper_mfs1 import ReadsQualityFilteringMfs1 as ReadsQualityFilteringMfs1
 from .mapping_minimap2.mapping_minimap2 import NanoMapping as NanoMapping
 from .quality_check.quality_check import NanoQualityCheck as NanoQualityCheck
