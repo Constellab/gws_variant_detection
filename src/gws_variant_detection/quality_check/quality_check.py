@@ -27,7 +27,7 @@ class NanoQualityCheck(Task):
     It provides a measure of the typical or central read length in a dataset.
      <b style="margin-left: Mean Read Length: </b> The mean read length is the average length of all sequencing reads in a dataset.
     It is calculated by dividing the total number of bases by the number of reads.
-     <b style="margin-left: Reads >Q5 , Reads >Q7 , Reads >Q10 , Reads >Q12 , Reads >Q15: </b> This refers to the number of reads with a quality score respectively greater than 5 , 7 , 10 , 12 and 15.
+     <b style="margin-left: Reads >Q10 , Reads >Q15 , Reads >Q20: </b> This refers to the number of reads with a quality score respectively greater than 5 , 7 , 10 , 12 and 15.
     Quality scores represent the confidence level of each base call in a sequencing read.
     """
 
