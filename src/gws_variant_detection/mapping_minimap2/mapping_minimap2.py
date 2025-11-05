@@ -34,10 +34,11 @@ class NanoMapping(Task):
       3) Exact downsampling by QNAME (after filtering) if 'target_reads' > 0.
       4) Per-sample outputs:
            - <sample>.sorted.bam (+ index)
-           - HTML plots (histogram + KDE) for Read Length and Read Coverage (final primary alignments)
+           - HTML plots (histogram only) for Read Length and Read Coverage (final primary alignments)
            - Measurement CSVs: <sample>.final_lengths.csv (ReadLength), <sample>.final_coverage.csv (CoveragePct)
-      5) Additionally, this Task builds a ResourceSet of Plotly figures
+      5) Additionally, this Task builds a ResourceSet of Plotly figures (histogram + stats sidebar, no KDE).
     """
+
     input_specs = InputSpecs({
         'input_folder': InputSpec(Folder, human_name="Folder containing FASTQ(.gz) files"),
         'input_file':   InputSpec(File,   human_name="Reference FASTA")
@@ -52,7 +53,7 @@ class NanoMapping(Task):
         'read_length_plots': OutputSpec(
             Folder,
             human_name="Read-length plots (HTML)",
-            short_description="Per-sample HTML histograms/KDE for FINAL BAMs"
+            short_description="Per-sample HTML histograms for FINAL BAMs"
         ),
         'distributions': OutputSpec(
             ResourceSet,
@@ -75,67 +76,96 @@ class NanoMapping(Task):
 
     shell_proxy: ShellProxy = None
 
-    # ---------- Helpers: stats text + histogram/KDE with the same annotation
+    # ---------- Helpers: stats text (same order as filtering) + histogram-only ----------
     @staticmethod
     def _stats_text(values: np.ndarray) -> str:
-        s = pd.Series(values, dtype="float64")
-        extra = [0.01, 0.025, 0.05, 0.10, 0.90, 0.95, 0.975, 0.99]
-        desc = s.describe(percentiles=[0.25, 0.50, 0.75] + extra).to_frame(name="value")
-        desc.loc["missing"] = int(len(s.index) - s.notna().sum())
+        """
+        Order: count, mean, std, min, max, 1%, 2.5%, 5%, 10%, 25%, 50%, 75%, 90%, 95%, 97.5%, 99%, missing
+        """
+        desired_order = [
+            "count", "mean", "std", "min", "max",
+            "1%", "2.5%", "5%", "10%", "25%", "50%", "75%",
+            "90%", "95%", "97.5%", "99%", "missing"
+        ]
+        s = pd.Series(values).dropna().astype(float)
 
         def _fmt(v):
             try:
+                if isinstance(v, (int, np.integer)) or float(v).is_integer():
+                    return f"{int(round(float(v)))}"
                 return f"{float(v):.3f}"
             except Exception:
                 return str(v)
-        return "<br>".join([f"{idx}: {_fmt(val[0])}" for idx, val in desc.iterrows()])
+
+        if s.empty:
+            zero_map = {k: 0 for k in desired_order}
+            return "<br>".join(f"{k}: {zero_map[k]}" for k in desired_order)
+
+        desc = s.describe(percentiles=[0.25, 0.50, 0.75])
+        qmap = {
+            "1%":    s.quantile(0.01),
+            "2.5%":  s.quantile(0.025),
+            "5%":    s.quantile(0.05),
+            "10%":   s.quantile(0.10),
+            "90%":   s.quantile(0.90),
+            "95%":   s.quantile(0.95),
+            "97.5%": s.quantile(0.975),
+            "99%":   s.quantile(0.99),
+        }
+        missing = int(len(values) - s.notna().sum())
+
+        values_map = {
+            "count": desc.get("count", 0),
+            "mean":  desc.get("mean", 0.0),
+            "std":   desc.get("std", 0.0),
+            "min":   desc.get("min", 0.0),
+            "max":   desc.get("max", 0.0),
+            "1%":    qmap["1%"],
+            "2.5%":  qmap["2.5%"],
+            "5%":    qmap["5%"],
+            "10%":   qmap["10%"],
+            "25%":   desc.get("25%", 0.0),
+            "50%":   desc.get("50%", 0.0),
+            "75%":   desc.get("75%", 0.0),
+            "90%":   qmap["90%"],
+            "95%":   qmap["95%"],
+            "97.5%": qmap["97.5%"],
+            "99%":   qmap["99%"],
+            "missing": missing,
+        }
+        return "<br>".join(f"{k}: {_fmt(values_map[k])}" for k in desired_order)
 
     @staticmethod
-    def _kde(values: np.ndarray) -> tuple[np.ndarray, np.ndarray] | None:
-        try:
-            from sklearn.neighbors import KernelDensity
-            from sklearn.model_selection import GridSearchCV
-        except Exception:
-            return None
-        if values.size < 10:
-            return None
-        x = values.reshape(-1, 1).astype(float)
-        std = values.std(ddof=1)
-        base_bw = max(1e-6, values.mean() * 0.01) if (std <= 0) else 1.06 * std * (values.shape[0] ** (-1/5))
-        grid = np.unique(np.clip(base_bw * np.array([0.25, 0.5, 1.0, 2.0]), 1e-6, None))
-        gs = GridSearchCV(KernelDensity(kernel="gaussian"), {"bandwidth": grid},
-                          cv=min(5, max(2, values.shape[0] // 5)))
-        gs.fit(x)
-        kde = gs.best_estimator_
-        xv = np.linspace(values.min(), values.max(), 2048)[:, None]
-        yv = np.exp(kde.score_samples(xv))
-        return xv.ravel(), yv
+    def _bins(n: int) -> int:
+        # same policy used elsewhere: 10% of N, min 50, max 5000
+        return min(max(int(n * 0.10), 50), 5000)
 
     @staticmethod
-    def _hist_kde_with_stats(values: np.ndarray, title: str, xlab: str, bins: int = 500) -> go.Figure:
+    def _hist_with_stats(values: np.ndarray, title: str, xlab: str) -> go.Figure:
+        s = pd.Series(values, dtype="float64")
+        n = s.notna().sum()
+        nbins = NanoMapping._bins(int(n)) if n else 50
+
         fig = go.Figure()
-        fig.add_trace(go.Histogram(x=values, nbinsx=bins, histnorm="probability density",
-                                   opacity=0.65, name="Histogram"))
-        kde = NanoMapping._kde(values)
-        if kde is not None:
-            xv, yv = kde
-            fig.add_trace(go.Scatter(x=xv, y=yv, mode="lines", name="KDE"))
+        fig.add_trace(go.Histogram(
+            x=s, nbinsx=nbins, histnorm="probability density",
+            opacity=0.75, name="Histogram"
+        ))
 
         stats_txt = NanoMapping._stats_text(values)
 
         fig.update_layout(
-            title=title,
+            title=f"{title} — N={int(n)}, bins={nbins}",
             xaxis_title=xlab,
             yaxis_title="Density",
             template="plotly_white",
-            barmode="overlay",
-            # >>> same push to the far right + generous right margin
+            legend=dict(x=1.02, y=1, xanchor="left"),
+            # Push stats far right and give a large right margin (like filtering)
             annotations=[dict(
-                x=1.35, y=1, xref="paper", yref="paper",
-                xanchor="left",
+                x=1.42, y=1, xref="paper", yref="paper", xanchor="left",
                 text=stats_txt, showarrow=False, align="left", font=dict(size=10)
             )],
-            margin=dict(r=560, l=60, t=60, b=60),
+            margin=dict(r=620, l=60, t=60, b=60),
         )
         return fig
 
@@ -143,7 +173,7 @@ class NanoMapping(Task):
     def _make_length_fig(csv_path: str, sample: str) -> PlotlyResource:
         d = pd.read_csv(csv_path)
         vals = d["ReadLength"].dropna().to_numpy()
-        fig = NanoMapping._hist_kde_with_stats(vals, f"{sample} — Read length", "Read length (bp)")
+        fig = NanoMapping._hist_with_stats(vals, f"{sample} — Read length", "Read length (bp)")
         pr = PlotlyResource(fig)
         pr.name = f"{sample} — Length"
         return pr
@@ -152,7 +182,7 @@ class NanoMapping(Task):
     def _make_coverage_fig(csv_path: str, sample: str) -> PlotlyResource:
         d = pd.read_csv(csv_path)
         vals = d["CoveragePct"].dropna().to_numpy()
-        fig = NanoMapping._hist_kde_with_stats(vals, f"{sample} — Read coverage", "Coverage (%)", bins=200)
+        fig = NanoMapping._hist_with_stats(vals, f"{sample} — Read coverage", "Coverage (%)")
         pr = PlotlyResource(fig)
         pr.name = f"{sample} — Coverage"
         return pr
@@ -201,7 +231,7 @@ class NanoMapping(Task):
         return {
             'output_path': Folder(result_path),
             'read_length_plots': Folder(plots_path),  # contains HTML + CSV
-            'distributions': rs,                      # ResourceSet of PlotlyResource
+            'distributions': rs,                      # ResourceSet of PlotlyResource (hist-only)
         }
 
     def run_after_task(self):

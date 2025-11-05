@@ -29,21 +29,16 @@ from ..base_env.Filtering_env import FilteringShellProxyHelper
 class ReadsQualityFiltering(Task):
     """
     Steps:
-    1) Phred filtering with `chopper -q <phred>` on each FASTQ.gz (quality trimming by score).
-    2) Per-read alignment against the reference using minimap2/mappy (preset: map-ont).
-    3) Keep reads that satisfy BOTH:
-        - Identity (%) = (mlen / blen) × 100, where mlen is the number of matching bases
-            on the aligned segment and blen is the alignment block length.
-        - Coverage (%) = ((q_en − q_st) / read_length) × 100, where q_st/q_en are the
-            read-aligned coordinates and read_length is the full read length (read-centric).
-    4) Per-sample outputs:
-        - Filtered FASTQ (after identity+coverage thresholds) and intermediate files.
-        - HTML histograms (with stats panel) and CSV value dumps:
-            • RAW (before Phred): length & coverage
-            • After Phred:        length & coverage
-            • After ID/COV:       length & coverage
-    5) The Task also builds three Plotly ResourceSets (RAW / after Phred / after ID/COV),
-        each containing interactive figures that include the same on-graph statistics panel.
+      1) Phred filtering with `chopper -q <phred>` on each FASTQ.gz.
+      2) Per-read alignment against the reference using minimap2/mappy (preset: map-ont).
+      3) Keep reads meeting BOTH thresholds:
+           • Identity (%)  = (mlen / blen) × 100
+           • Coverage (%)  = ((q_en − q_st) / read_length) × 100   [read-centric]
+      4) Per-sample outputs (for each stage RAW / after Phred / after ID/COV):
+           • HTML histogram with on-graph stats panel
+           • CSV dump of raw values
+      5) Builds three Plotly ResourceSets (RAW / after Phred / after ID/COV), each
+         containing interactive figures with the exact same stats panel content.
     """
 
     # ---------- I/O ----------
@@ -64,7 +59,7 @@ class ReadsQualityFiltering(Task):
             short_description="Summary of reads kept per sample"
         ),
 
-        # HTML folder outputs (as you requested)
+        # HTML/CSV folder outputs
         'plots_raw': OutputSpec(
             Folder,
             human_name="Plots — RAW input",
@@ -81,7 +76,7 @@ class ReadsQualityFiltering(Task):
             short_description="Per-sample histograms after identity/coverage (HTML + CSV)"
         ),
 
-        # NEW: three separate ResourceSets (one per stage)
+        # Three separate Plotly ResourceSets (RAW / after Phred / after ID/COV)
         'plots_raw_rs': OutputSpec(ResourceSet, human_name="RAW distributions (Plotly)"),
         'plots_phred_rs': OutputSpec(ResourceSet, human_name="After Phred distributions (Plotly)"),
         'plots_ic_rs': OutputSpec(ResourceSet, human_name="After identity/coverage distributions (Plotly)"),
@@ -102,34 +97,77 @@ class ReadsQualityFiltering(Task):
 
     shell_proxy: ShellProxy = None
 
-    # ---------- Helpers: Plotly with same stats panel ----------
+    # ---------- Helpers: stats + plotting ----------
     @staticmethod
     def _stats_text(series: pd.Series) -> str:
+        """
+        Build the stats panel text in this exact order:
+        count, mean, std, min, max, 1%, 2.5%, 5%, 10%, 25%, 50%, 75%, 90%, 95%, 97.5%, 99%, missing
+        """
+        desired_order = [
+            "count", "mean", "std", "min", "max",
+            "1%", "2.5%", "5%", "10%", "25%", "50%", "75%",
+            "90%", "95%", "97.5%", "99%", "missing"
+        ]
+
         s = series.dropna().astype(float)
-        if s.empty:
-            idx = ["count","mean","std","min","max","1%","2.5%","5%","10%","25%","50%","75%","90%","95%","97.5%","99%","missing"]
-            vals = [0]*len(idx)
-            return "<br>".join([f"{k}: {v}" for k, v in zip(idx, vals)])
-        extra = [0.01, 0.025, 0.05, 0.10, 0.90, 0.95, 0.975, 0.99]
-        desc = s.describe(percentiles=[0.25, 0.50, 0.75] + extra)
-        missing = int(len(s.index) - s.notna().sum())
+
         def _fmt(v):
             try:
+                # integers for count/missing; 3 decimals otherwise
+                if isinstance(v, (int, np.integer)) or float(v).is_integer():
+                    return f"{int(round(float(v)))}"
                 return f"{float(v):.3f}"
             except Exception:
                 return str(v)
-        lines = [f"{idx}: {_fmt(desc[idx])}" for idx in
-                 ["count","mean","std","min","25%","50%","75%","max"]]
-        extra_pairs = [("1%", 0.01), ("2.5%", 0.025), ("5%", 0.05), ("10%", 0.10),
-                       ("90%", 0.90), ("95%", 0.95), ("97.5%", 0.975), ("99%", 0.99)]
-        for name, p in extra_pairs:
-            val = s.quantile(p)
-            lines.append(f"{name}: {_fmt(val)}")
-        lines.append(f"missing: {missing}")
-        return "<br>".join(lines)
+
+        # Empty input → zeros in the exact order
+        if s.empty:
+            zero_map = {k: 0 for k in desired_order}
+            return "<br>".join(f"{k}: {zero_map[k]}" for k in desired_order)
+
+        # Base describe (count, mean, std, min, 25%, 50%, 75%, max)
+        desc = s.describe(percentiles=[0.25, 0.50, 0.75])
+
+        # Extra quantiles
+        qmap = {
+            "1%":    s.quantile(0.01),
+            "2.5%":  s.quantile(0.025),
+            "5%":    s.quantile(0.05),
+            "10%":   s.quantile(0.10),
+            "90%":   s.quantile(0.90),
+            "95%":   s.quantile(0.95),
+            "97.5%": s.quantile(0.975),
+            "99%":   s.quantile(0.99),
+        }
+
+        missing = int(len(series.index) - s.notna().sum())
+
+        values = {
+            "count": desc.get("count", 0),
+            "mean":  desc.get("mean", 0.0),
+            "std":   desc.get("std", 0.0),
+            "min":   desc.get("min", 0.0),
+            "max":   desc.get("max", 0.0),
+            "1%":    qmap["1%"],
+            "2.5%":  qmap["2.5%"],
+            "5%":    qmap["5%"],
+            "10%":   qmap["10%"],
+            "25%":   desc.get("25%", 0.0),
+            "50%":   desc.get("50%", 0.0),
+            "75%":   desc.get("75%", 0.0),
+            "90%":   qmap["90%"],
+            "95%":   qmap["95%"],
+            "97.5%": qmap["97.5%"],
+            "99%":   qmap["99%"],
+            "missing": missing,
+        }
+
+        return "<br>".join(f"{k}: {_fmt(values[k])}" for k in desired_order)
 
     @staticmethod
     def _bins(n: int) -> int:
+        # 10% of N, at least 50, at most 5000
         return min(max(int(n * 0.10), 50), 5000)
 
     @staticmethod
@@ -155,7 +193,7 @@ class ReadsQualityFiltering(Task):
                 x=1.42, y=1, xref="paper", yref="paper", xanchor="left",
                 text=stats_txt, showarrow=False, align="left", font=dict(size=10)
             )],
-            margin=dict(r=620, l=60, t=60, b=60)
+            margin=dict(r=620, l=60, t=60, b=60)  # big right margin so it never overlaps
         )
         return fig
 
@@ -166,7 +204,7 @@ class ReadsQualityFiltering(Task):
         vals = d[col].dropna().to_numpy()
         fig = ReadsQualityFiltering._hist_with_stats(vals, f"{sample} — {title_suffix}", xlab)
         pr = PlotlyResource(fig)
-        # Resource names per RS: just sample + metric (no stage needed inside a per-stage RS)
+        # Name inside a per-stage ResourceSet: sample + metric
         pr.name = f"{sample} — {metric}"
         return pr
 
