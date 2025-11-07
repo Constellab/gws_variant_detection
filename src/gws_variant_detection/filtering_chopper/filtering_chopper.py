@@ -41,7 +41,6 @@ class ReadsQualityFiltering(Task):
          containing interactive figures with the exact same stats panel content.
     """
 
-    # ---------- I/O ----------
     input_specs = InputSpecs({
         'input_folder': InputSpec(Folder, human_name="Folder containing FASTQ(.gz) files"),
         'reference_fasta': InputSpec(File, human_name="Combined reference sequence (FASTA)")
@@ -82,7 +81,6 @@ class ReadsQualityFiltering(Task):
         'plots_ic_rs': OutputSpec(ResourceSet, human_name="After identity/coverage distributions (Plotly)"),
     })
 
-    # ---------- Config ----------
     config_specs: ConfigSpecs = {
         "num_threads": IntParam(default_value=15, min_value=2, short_description="Number of threads"),
         "qualified_quality_phred": IntParam(default_value=10, min_value=4, short_description="Phred quality threshold"),
