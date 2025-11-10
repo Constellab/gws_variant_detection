@@ -43,11 +43,10 @@ class FreebayesVariantsDetection(Task):
             short_description="Raw variant calling file"),
     })
 
-    config_specs: ConfigSpecs = {
+    config_specs = ConfigSpecs({
         "ploidy": IntParam(default_value=2, min_value=1, short_description="Set the  the number of copies of each chromosome present in the genome of the organism being analyzed"),
         "num_processes": IntParam(default_value=15, min_value=4, short_description="Set the number of threads"),
-
-    }
+    })
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),

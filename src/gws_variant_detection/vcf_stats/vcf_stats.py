@@ -34,8 +34,7 @@ class VariantStats(Task):
         'Statistical_vcf_table': OutputSpec(Table, human_name="VCF stats", short_description="An overview of the numbers of the different detected variants.")
     })
 
-    config_specs: ConfigSpecs = {
-    }
+    config_specs = ConfigSpecs({})
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),

@@ -38,8 +38,7 @@ class RawReadsClassification(Task):
             short_description="Each folder contains the different reads that map to a specific reference sequence."),
     })
 
-    config_specs: ConfigSpecs = {
-    }
+    config_specs = ConfigSpecs({})
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),

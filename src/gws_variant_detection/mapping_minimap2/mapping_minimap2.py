@@ -62,12 +62,12 @@ class NanoMapping(Task):
         ),
     })
 
-    config_specs: ConfigSpecs = {
+    config_specs = ConfigSpecs({
         "num_threads":  IntParam(default_value=15, min_value=2, short_description="Number of threads"),
         "target_reads": IntParam(default_value=5000, min_value=1, short_description="Exact number of primary reads to keep per sample"),
         "low_tail_q":   FloatParam(default_value=0.05, min_value=0.0, max_value=0.9999,
                                    short_description="Fraction to drop from the low-length tail (e.g., 0.05 = drop ≤ 5th percentile; 0 = no filtering)")
-    }
+    })
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),

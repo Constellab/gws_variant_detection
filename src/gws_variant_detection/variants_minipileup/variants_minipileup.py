@@ -39,8 +39,7 @@ class MinipileupVariantsDetection(Task):
             short_description="per base variant calling file"),
     })
 
-    config_specs: ConfigSpecs = {
-    }
+    config_specs = ConfigSpecs({})
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),

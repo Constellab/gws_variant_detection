@@ -81,12 +81,12 @@ class ReadsQualityFiltering(Task):
         'plots_ic_rs': OutputSpec(ResourceSet, human_name="After identity/coverage distributions (Plotly)"),
     })
 
-    config_specs: ConfigSpecs = {
+    config_specs = ConfigSpecs({
         "num_threads": IntParam(default_value=15, min_value=2, short_description="Number of threads"),
         "qualified_quality_phred": IntParam(default_value=10, min_value=4, short_description="Phred quality threshold"),
         "min_identity": IntParam(default_value=60, min_value=10, short_description="Minimum identity (%)"),
         "min_coverage": IntParam(default_value=60, min_value=10, short_description="Minimum coverage (%)")
-    }
+    })
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),

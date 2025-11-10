@@ -33,9 +33,9 @@ class PorechopTrimming(Task):
             short_description="#################")
     })
 
-    config_specs: ConfigSpecs = {
+    config_specs = ConfigSpecs({
         "num_threads": IntParam(default_value=2, min_value=2, short_description="Number of threads ")
-    }
+    })
 
     python_file_path = os.path.join(
         os.path.abspath(os.path.dirname(__file__)),
