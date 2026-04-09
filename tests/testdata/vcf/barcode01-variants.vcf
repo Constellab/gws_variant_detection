@@ -1,0 +1,12 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##source=minipileup-1.0-r11
+##reference=reference.fa
+##contig=<ID=TestSeq,length=500>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	sample01
+TestSeq	100	.	A	G	50	PASS	.	GT:AD	0/1:50,30
+TestSeq	200	.	T	C	40	PASS	.	GT:AD	0/1:60,25
+TestSeq	300	.	G	A	35	PASS	.	GT:AD	1/1:5,80
+TestSeq	400	.	C	T	60	PASS	.	GT:AD	0/1:45,40

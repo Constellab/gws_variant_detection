@@ -1,0 +1,7 @@
+##fileformat=VCFv4.2
+##source=minipileup-1.0-r11
+##reference=/lab/user/bricks/gws_variant_detection/tests/testdata/reference.fa
+##contig=<ID=TestSeq,length=492>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	/lab/user/bricks/gws_variant_detection/tests/testdata/bam/barcode01.sorted.bam

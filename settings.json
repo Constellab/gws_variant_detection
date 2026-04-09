@@ -3,7 +3,8 @@
     "author": "Gencovery",
     "version": "0.1.29",
     "variables": {
-        "skeleton:testdata_dir": "${CURRENT_DIR}/tests/testdata"
+        "skeleton:testdata_dir": "${CURRENT_DIR}/tests/testdata",
+        "gws_variant_detection:testdata_dir": "${CURRENT_DIR}/tests/testdata"
     },
     "environment": {
         "bricks": [
